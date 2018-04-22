@@ -137,7 +137,6 @@ def generateVideo(frames, speedup, outName):
     for j in range(i + 1, min(i + w + 1, L)):
       print(f"\tmatchiing frame {i} with frame {j}")
       Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
-    Dv[i, j] = CmVal + CsVal
   
   # Populate Dv
   print("Populating Dv")
