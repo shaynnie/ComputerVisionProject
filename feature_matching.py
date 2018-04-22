@@ -15,7 +15,8 @@ import time
 # OUTPUT:
 #		matches: Nx4 matching coordinates
 #		R,t: second camera extrinsics
-def find_matching(img1, img2, K1, K2):
+
+def find_matching(img1, img2):
 	# Initiate SIFT detector
 	sift = cv2.xfeatures2d.SIFT_create()
 
@@ -36,7 +37,7 @@ def find_matching(img1, img2, K1, K2):
 	# store all the good matches as per Lowe's ratio test.
 	good = []
 	for m,n in feature_matches:
-		if m.distance < 0.8*n.distance:
+		if m.distance < 0.5*n.distance:
 			good.append(m)
 
 	if len(good)<=10:
@@ -46,15 +47,15 @@ def find_matching(img1, img2, K1, K2):
 	img1_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
 	img2_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
 
-	H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=15.0)
+	H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC, ransacReprojThreshold=5.0)
 
 	img1_pts_inliers = [[x,y] for i,[x,y] in enumerate(img1_pts) if mask[i]==1]
 	img2_pts_inliers = [[x,y] for i,[x,y] in enumerate(img2_pts) if mask[i]==1]
 
 	matches = np.concatenate([img1_pts_inliers, img2_pts_inliers], axis=1)
-	R, t = find_camera_pose(matches, K1, K2)
+	# R, t = find_camera_pose(matches, K1, K2)
 
-	return matches, R, t
+	return matches
 
 # matches: a N x 4 array where:
 # 			matches(i,1:2) is a point (w,h) in the first image
@@ -88,21 +89,7 @@ def find_camera_pose(matches, K1, K2):
 	return R2, t2
 
 
-def unit_test():
-	name = 'house'
-	data_dir = "./data/{}".format(name)
-
-	img1 = cv2.imread(f"{data_dir}/{name}1.jpg", 0)
-	img2 = cv2.imread(f"{data_dir}/{name}2.jpg", 0)
-
-	K1 = scipy.io.loadmat(f"{data_dir}/{name}1_K.mat")["K"]
-	K2 = scipy.io.loadmat(f"{data_dir}/{name}2_K.mat")["K"]
-
-	start = time.time()
-	matches, R, t= find_matching(img1, img2, K1, K2)
-	duration = time.time() - start
-	print(f"feature matching time={duration}")
-
+def visualize(t, R, matches, img1, img2):
 	pt1 = np.concatenate((matches[:, 0:2], np.ones((matches.shape[0], 1))), axis=1)
 	pt2 = np.concatenate((matches[:, 2:], np.ones((matches.shape[0], 1))), axis=1)
 
@@ -115,13 +102,14 @@ def unit_test():
 	matches = matches[:int(matches.shape[0]*VISIBLE_RATIO)]
 	fig = plt.figure()
 	ax = fig.add_subplot(111)
-	plt.imshow(np.concatenate([img1, img2], axis=1))
+	plt.imshow(np.concatenate([img1, img2], axis=1), cmap='gray')
 	plt.plot(matches[:, 0], matches[:, 1], "+r")
 	plt.plot(matches[:, 2] + img1.shape[1], matches[:, 3], "+r")
 	for i in range(matches.shape[0]):
-		line = Line2D([matches[i, 0], matches[i, 2] + img1.shape[1]], [matches[i, 1], matches[i, 3]], linewidth=1,
+		if i % 3 == 0:
+			line = Line2D([matches[i, 0], matches[i, 2] + img1.shape[1]], [matches[i, 1], matches[i, 3]], linewidth=1,
 					  color="r")
-		ax.add_line(line)
+			ax.add_line(line)
 	plt.show()
 
 	# Verify 3D pose
@@ -129,8 +117,28 @@ def unit_test():
 	P2 = K2 @ np.concatenate([R, t[:, np.newaxis]], axis=1)
 	points, _ = find_3d_points(matches, P1, P2)
 	plot_3d(points, t)
+
+
+def unit_test():
+	name = 'house'
+	data_dir = "./data/{}".format(name)
+
+	img1 = cv2.imread(f"{data_dir}/{name}1.jpg", 0)
+	img2 = cv2.imread(f"{data_dir}/{name}2.jpg", 0)
+
+	K1 = scipy.io.loadmat(f"{data_dir}/{name}1_K.mat")["K"]
+	K2 = scipy.io.loadmat(f"{data_dir}/{name}2_K.mat")["K"]
+
+	start = time.time()
+	matches= find_matching(img1, img2)
+	R, t = find_camera_pose(matches, K1, K2)
+
+	duration = time.time() - start
+	print(f"feature matching time={duration}")
+
+	visualize(t, R, matches, img1, img2)
+
 	
 
-unit_test()
 
 
