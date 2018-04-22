@@ -1,7 +1,6 @@
 import sys
 import numpy as np
 import cv2
-import utility as utl
 import siggraph2015 as alg
 
 def parseArgv(argv):
@@ -17,5 +16,5 @@ def parseArgv(argv):
 
 if __name__ == '__main__':
   inputName, speedup, outName = parseArgv(sys.argv)
-  frames = utl.readVideo(inputName)
+  frames = alg.readVideo(inputName)
   alg.generateVideo(frames, speedup, outName)

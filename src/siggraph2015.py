@@ -4,6 +4,12 @@ from matplotlib.lines import Line2D
 import cv2
 DEBUG = True
 
+def writeVideo(optFrames):
+  #-------------------------------------------------------#
+  # Writes a video given the desired frames               #
+  #-------------------------------------------------------#
+  print("to be implemented")
+
 def readVideo(inputName):
   print(f"reading video {inputName}")
   capture = cv2.VideoCapture(inputName)
@@ -23,15 +29,18 @@ def readVideo(inputName):
 def reconstructionError(matches, H):
   error = 0
   for match in matches:
-    oriCoor = np.array([[matches[2]],[matches[3]],[1]])
-    prjCoor = np.dot(H, oriCoor)
-    prjCoor = prjCoor / prjCoor[2]
-    trueCoor= np.array([[matches[0]], matches[1]])
-    error += np.linalg.norm(prjCoor[0:2], trueCoor)
+    oriCoor = np.array([[match[0]], [match[1]],[1]])
+    prjCoor = H.dot(oriCoor)
+    trueCoor= np.array([[match[2]], [match[3]]])
+    prjCoor2D = np.array([[prjCoor[0,0]/prjCoor[2,0]], [prjCoor[1,0]/prjCoor[2,0]]])
+    error += np.linalg.norm(prjCoor2D - trueCoor)
   error /= len(matches)
   return error
 
-def findMatches(img1, img2):
+def Cr(img1, img2):
+  #---------------------------------------------------------#
+  # Cr = reconstruction error                               #
+  #---------------------------------------------------------#
   sift = cv2.xfeatures2d.SIFT_create()
   # find the keypoints and descriptors with SIFT
   kp1, des1 = sift.detectAndCompute(img1,None)
@@ -50,66 +59,101 @@ def findMatches(img1, img2):
       good.append(m)
   img1_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
   img2_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
-
+  # img2_pts_i = H * img1_pts_i
   H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=5.0)
 
   img1_pts_inliers = [[x,y] for i,[x,y] in enumerate(img1_pts) if mask[i]==1]
   img2_pts_inliers = [[x,y] for i,[x,y] in enumerate(img2_pts) if mask[i]==1]
 
   matches = np.concatenate([img1_pts_inliers, img2_pts_inliers], axis=1)
-  error = recontructionError(matches, H)
+  error = reconstructionError(matches, H)
 
-  return matches, H, error
+  return H, error
 
-def writeVideo(optFrames):
-  #-------------------------------------------------------#
-  # Writes a video given the desired frames               #
-  #-------------------------------------------------------#
-  print("to be implemented")
-
-def Cr(frameI, frameJ):
-  print("to be implemented")
-
-def Co(frameI, homography):
-  centerI = np.zeroes((2,1))
-  centerI[0] = frameI.shape[0]
-  centerI[1] = frameI.shape[1]
-  centerJ = homographyTrans(centerI, homography)
-  return np.linalg.norm(centerI - centerJ)
+def Co(frameI, H):
+  centerCoor = np.array([[frameI.shape[0]],[frameI.shape[1]],[1]])
+  transCoor = H.dot(centerCoor)
+  transCoor2D = np.array([[transCoor[0]/transCoor[2]], [transCoor[1]/transCoor[2]]])
+  return np.linalg.norm(centerCoor[0:2] - transCoor2D)
 
 def Cm(frameI, frameJ):
   #-------------------------------------------------------#
   # Identical to Cm in the paper.                         #
   # d: length of the diagonal in pixels                   #
-  # tau, gamma: empirical constant as mentioned in work   #
+  # tau, gamma: empirical constants as mentioned in work  #
   #-------------------------------------------------------# 
   d = np.sqrt(frameI.shape[0] ** 2 + frameI.shape[1] **2)
   tau = 0.1 * d
   gamma = 0.5 * d
-  matchingCost, homography = Cr(frameI, frameJ)
-  if matchingCost >= tau:
+  H, reconstructionErr = Cr(frameI, frameJ)
+  if reconstructionErr >= tau:
     return gamma
   else:
-    return Co(frameI, homography)
+    return Co(frameI, H)
+
+def Cs(i, j, v):
+  return min((abs(j - i) - v) ** 2, 200)
+
+def Ca(h, i, j):
+  return min((abs(j - i) - abs(i - h)) ** 2, 200)
+
+def findMinValIdx(i, j, w, Dv):
+  minVal = 100000000.0
+  minIdx = 0
+  lambdaA = 80.0
+  for idx in range(1, w + 1):
+    if (Dv(i - k, j) + lambdaA * Ca(i - k, i, j)) < minVal:
+      minVal = (Dv(i - k, j) + lambdaA * Ca(i - k, i, j))
+      minIdx = i - k
+  return minVal, minIdx
+
+def argMinMatrix(L, g, w, Dv):
+  s = 0
+  d = 0
+  minCost= 100000000.0
+  for i in (L - g, L):
+    for j in (i + 1, max(i + w, L)):
+      if Dv[i,j] < minCost:
+        s = i
+        d = j
+  return s, d
 
 def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
-  matches, H, err1 = findMatches(frames[0], frames[1])
-  matches, H, err2 = findMatches(frames[0], frames[15])
-  print(f"err1 is {err1}, err2 is {err2}")
-#  VISIBLE_RATIO= 1
-#  matches = matches[:int(matches.shape[0]*VISIBLE_RATIO)]
-#  fig = plt.figure()
-#  ax = fig.add_subplot(111)
-#  plt.imshow(np.concatenate([frames[0], frames[10]], axis=1))
-#  plt.plot(matches[:, 0], matches[:, 1], "+r")
-#  plt.plot(matches[:, 2] + frames[0].shape[1], matches[:, 3], "+r")
-#  for i in range(matches.shape[0]):
-#    line = Line2D([matches[i, 0], matches[i, 2] + frames[0].shape[1]], [matches[i, 1], matches[i, 3]], linewidth=1,
-#                   color="r")
-#    ax.add_line(line)
-#  plt.show()
-  #optFrames = dtwFindOptFrames(frames, speedup)
-  #writeVideo(optFrames, outName)
+  lambdaS = 200
+  v = speedup
+  g = v + 10
+  w = v + 2
+  L = len(frames)
+  Dv= np.zeros([L, L])
+  Tv= np.zeros([L, L])
+  
+  # Initialize Dv
+  print("Initializing Dv")
+  for i in range(0, g):
+    print(f"\tdealing frame {i}")
+    for j in range(i + 1, max(i + w + 1, L)):
+      Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
+  
+  # Populate Dv
+  print("Populating Dv")
+  for i in range(g, L):
+    print(f"\tdealing frame {i}")
+    for j in range(i + 1, max(i + w + 1, L)):
+      c = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
+      minCost, argMin = findMinValIdx(i, j, w, Dv)
+      Dv[i, j] = minCost
+      Tv[i, j] = argMin
+  
+  # Backtracing
+  print("Backtracing")
+  s, d = argMinMatrix(L, g, w, Dv)
+  p = [d]
+  while s > g:
+    p.insert(0, s)
+    b = Tv(s,d)
+    d = s
+    s = b
+  print(f"p is {p}")
