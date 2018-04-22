@@ -101,9 +101,9 @@ def findMinValIdx(i, j, w, Dv):
   minVal = 100000000.0
   minIdx = 0
   lambdaA = 80.0
-  for idx in range(1, w + 1):
-    if (Dv(i - k, j) + lambdaA * Ca(i - k, i, j)) < minVal:
-      minVal = (Dv(i - k, j) + lambdaA * Ca(i - k, i, j))
+  for k in range(1, w + 1):
+    if (Dv[i - k, j] + lambdaA * Ca(i - k, i, j)) < minVal:
+      minVal = (Dv[i - k, j] + lambdaA * Ca(i - k, i, j))
       minIdx = i - k
   return minVal, minIdx
 
@@ -111,8 +111,8 @@ def argMinMatrix(L, g, w, Dv):
   s = 0
   d = 0
   minCost= 100000000.0
-  for i in (L - g, L):
-    for j in (i + 1, min(i + w, L)):
+  for i in range(L - g, L):
+    for j in range(i + 1, min(i + w, L)):
       if Dv[i,j] < minCost:
         s = i
         d = j
@@ -123,8 +123,9 @@ def generateVideo(frames, speedup, outName):
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
   lambdaS = 200
+  frames = frames[0:30]
   v = speedup
-  g = v + 10
+  g = v + 4
   w = v + 2
   L = len(frames)
   Dv= np.zeros([L, L])
@@ -144,16 +145,17 @@ def generateVideo(frames, speedup, outName):
       print(f"\tcomputing cost for frame {i} with frame {j}")
       c = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
       minCost, argMin = findMinValIdx(i, j, w, Dv)
-      Dv[i, j] = minCost
+      Dv[i, j] = c + minCost
       Tv[i, j] = argMin
   
   # Backtracing
   print("Backtracing")
   s, d = argMinMatrix(L, g, w, Dv)
+  print(f"s is {s} d is {d}")
   p = [d]
   while s > g:
     p.insert(0, s)
-    b = Tv(s,d)
+    b = int(Tv[s,d])
     d = s
     s = b
-  print(f"p is {p}")
+  p.insert(0, 2)
