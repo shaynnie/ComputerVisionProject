@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import cv2
 import utility as utl
+import siggraph2015 as alg
 
 def parseArgv(argv):
   if len(argv) != 3:
@@ -10,8 +11,11 @@ def parseArgv(argv):
     sys.exit()
     return None, None
   else:
-    return argv[1], int(argv[2])
+    videoName = argv[1].split('/')
+    outName = videoName[-1] + "_" + argv[2] + "xSpeedup.mp4"
+    return argv[1], int(argv[2]), outName
 
 if __name__ == '__main__':
-  inputName, speedup = parseArgv(sys.argv)
+  inputName, speedup, outName = parseArgv(sys.argv)
   frames = utl.readVideo(inputName)
+  alg.generateVideo(frames, speedup, outName)
