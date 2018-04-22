@@ -112,7 +112,7 @@ def argMinMatrix(L, g, w, Dv):
   d = 0
   minCost= 100000000.0
   for i in (L - g, L):
-    for j in (i + 1, max(i + w, L)):
+    for j in (i + 1, min(i + w, L)):
       if Dv[i,j] < minCost:
         s = i
         d = j
@@ -133,15 +133,15 @@ def generateVideo(frames, speedup, outName):
   # Initialize Dv
   print("Initializing Dv")
   for i in range(0, g):
-    print(f"\tdealing frame {i}")
-    for j in range(i + 1, max(i + w + 1, L)):
+    for j in range(i + 1, min(i + w + 1, L)):
+      print(f"\tmatchiing frame {i} with frame {j}")
       Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
   
   # Populate Dv
   print("Populating Dv")
   for i in range(g, L):
-    print(f"\tdealing frame {i}")
-    for j in range(i + 1, max(i + w + 1, L)):
+    for j in range(i + 1, min(i + w + 1, L)):
+      print(f"\tcomputing cost for frame {i} with frame {j}")
       c = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
       minCost, argMin = findMinValIdx(i, j, w, Dv)
       Dv[i, j] = minCost
