@@ -102,8 +102,8 @@ def findMinValIdx(i, j, w, Dv):
   minIdx = 0
   lambdaA = 80.0
   for k in range(1, w + 1):
-    if (Dv[i - k, j] + lambdaA * Ca(i - k, i, j)) < minVal:
-      minVal = (Dv[i - k, j] + lambdaA * Ca(i - k, i, j))
+    if (Dv[i - k, i] + lambdaA * Ca(i - k, i, j)) < minVal:
+      minVal = (Dv[i - k, i] + lambdaA * Ca(i - k, i, j))
       minIdx = i - k
   return minVal, minIdx
 
@@ -122,7 +122,7 @@ def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
-  lambdaS = 200
+  lambdaS = 200.0
   frames = frames[0:30]
   v = speedup
   g = v + 4
@@ -137,6 +137,7 @@ def generateVideo(frames, speedup, outName):
     for j in range(i + 1, min(i + w + 1, L)):
       print(f"\tmatchiing frame {i} with frame {j}")
       Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
+    Dv[i, j] = CmVal + CsVal
   
   # Populate Dv
   print("Populating Dv")
