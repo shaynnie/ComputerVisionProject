@@ -71,7 +71,7 @@ def Cr(img1, img2):
   return H, error
 
 def Co(frameI, H):
-  centerCoor = np.array([[frameI.shape[0]],[frameI.shape[1]],[1]])
+  centerCoor = np.array([[frameI.shape[0]/2],[frameI.shape[1]/2],[1]])
   transCoor = H.dot(centerCoor)
   transCoor2D = np.array([[transCoor[0]/transCoor[2]], [transCoor[1]/transCoor[2]]])
   return np.linalg.norm(centerCoor[0:2] - transCoor2D)
@@ -123,7 +123,6 @@ def generateVideo(frames, speedup, outName):
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
   lambdaS = 200.0
-  frames = frames[0:30]
   v = speedup
   g = v + 4
   w = v + 2
@@ -158,4 +157,18 @@ def generateVideo(frames, speedup, outName):
     b = int(Tv[s,d])
     d = s
     s = b
+    print(f"p is {p}")
   p.insert(0, 2)
+  print(f"p is {p}")
+
+  fourcc = cv2.VideoWriter_fourcc(*'XVID')
+  out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
+  for idx in p:
+    out.write(frames[idx])
+  out.release()
+  out = cv2.VideoWriter('outputNoAlg.avi', fourcc, 20.0, (640, 480))
+  idx = 0
+  while idx < L:
+    out.write(frames[idx])
+    idx += v
+  out.release()
