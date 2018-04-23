@@ -97,7 +97,8 @@ def Cm(frameI, frameJ):
     return Co(frameI, H)
 
 def Cs(i, j, v):
-  return min((abs(j - i) - v) ** 2, 200)
+  lambdaS = 5.0
+  return min(lambdaS * ((j - i - v) ** 2), 200)
 
 def Ca(h, i, j):
   return min((abs(j - i) - abs(i - h)) ** 2, 200)
@@ -105,8 +106,8 @@ def Ca(h, i, j):
 def findMinValIdx(i, j, w, Dv):
   minVal = 100000000.0
   minIdx = 0
-  lambdaA = 40.0
-  for k in range(1, w + 1):
+  lambdaA = 0.0
+  for k in range(1, w):
     if (Dv[i - k, i] + lambdaA * Ca(i - k, i, j)) < minVal:
       minVal = (Dv[i - k, i] + lambdaA * Ca(i - k, i, j))
       minIdx = i - k
@@ -127,10 +128,9 @@ def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
-  lambdaS = 100.0
   v = speedup
-  g = v + 11
-  w = v + 10
+  g = v + 5
+  w = v + 4
   frames = frames[0:60]
   L = len(frames)
   Dv= np.zeros([L, L])
@@ -139,20 +139,23 @@ def generateVideo(frames, speedup, outName):
   # Initialize Dv
   print("Initializing Dv")
   for i in range(0, g):
-    for j in range(i + 1, min(i + w + 1, L)):
-      print(f"\tmatchiing frame {i} with frame {j}")
+    for j in range(i + 1, min(i + w, L)):
       CmVal = Cm(frames[i], frames[j])
-      CsVal = lambdaS * Cs(i, j, v)
+      CsVal = Cs(i, j, v)
+      print(f"\tmatchiing frame {i} with frame {j}, Cm is {CmVal}, Cs is {CsVal}")
       Dv[i, j] = CmVal + CsVal
       #Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
   
   # Populate Dv
   print("Populating Dv")
   for i in range(g, L):
-    for j in range(i + 1, min(i + w + 1, L)):
-      print(f"\tcomputing cost for frame {i} with frame {j}")
-      c = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
+    for j in range(i + 1, min(i + w, L)):
+      CmVal = Cm(frames[i], frames[j])
+      CsVal = Cs(i, j, v)
+      c = CmVal + CsVal
+      print(f"\tcomputing cost for frame {i} with frame {j}, Cm is {CmVal}, Cs is {CsVal}")
       minCost, argMin = findMinValIdx(i, j, w, Dv)
+      print(f"\tbest backtracking is from frame {argMin} to frame {i}, having cost {Dv[argMin, i]}")
       Dv[i, j] = c + minCost
       Tv[i, j] = argMin
   
