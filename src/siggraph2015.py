@@ -56,12 +56,12 @@ def Cr(img1, img2):
   # store all the good matches as per Lowe's ratio test.
   good = []
   for m,n in feature_matches:
-    if m.distance < 0.5*n.distance:
+    if m.distance < 0.7*n.distance:
       good.append(m)
   img1_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
   img2_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
   # img2_pts_i = H * img1_pts_i
-  H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=5.0)
+  H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=15.0)
 
   img1_pts_inliers = [[x,y] for i,[x,y] in enumerate(img1_pts) if mask[i]==1]
   img2_pts_inliers = [[x,y] for i,[x,y] in enumerate(img2_pts) if mask[i]==1]
@@ -119,7 +119,9 @@ def argMinMatrix(L, g, w, Dv):
   minCost= 100000000.0
   for i in range(L - g, L):
     for j in range(i + 1, min(i + w, L)):
+      print(f"cost of block ({i}, {j}) is {Dv[i, j]}")
       if Dv[i,j] < minCost:
+        minCost= Dv[i, j]
         s = i
         d = j
   return s, d
@@ -129,13 +131,11 @@ def generateVideo(frames, speedup, outName):
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
   v = speedup
-  g = v + 5
-  w = v + 4
-  frames = frames[0:60]
+  g = v + 11
+  w = v + 10
   L = len(frames)
   Dv= np.zeros([L, L])
   Tv= np.zeros([L, L])
-  
   # Initialize Dv
   print("Initializing Dv")
   for i in range(0, g):
@@ -173,12 +173,11 @@ def generateVideo(frames, speedup, outName):
   p.insert(0, s)
   print(f"p is {p}")
 
-  fourcc = cv2.VideoWriter_fourcc(*'XVID')
-  out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
+  out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (1920, 1080))
   for idx in p:
     out.write(frames[idx])
   out.release()
-  out = cv2.VideoWriter('outputNoAlg.avi', fourcc, 20.0, (640, 480))
+  out = cv2.VideoWriter('outputNoAlg.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (1920, 1080))
   idx = 0
   while idx < L:
     out.write(frames[idx])
