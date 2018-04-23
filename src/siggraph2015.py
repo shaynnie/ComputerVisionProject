@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 from matplotlib.lines import Line2D
 import cv2
 DEBUG = True
@@ -74,7 +75,11 @@ def Co(frameI, H):
   centerCoor = np.array([[frameI.shape[0]/2],[frameI.shape[1]/2],[1]])
   transCoor = H.dot(centerCoor)
   transCoor2D = np.array([[transCoor[0]/transCoor[2]], [transCoor[1]/transCoor[2]]])
-  return np.linalg.norm(centerCoor[0:2] - transCoor2D)
+  #print(f"centerCoor is \n {centerCoor}\n")
+  #print(f"transCoor is \n {transCoor}\n")
+  #print(f"transCoor2D is \n{transCoor2D}\n")
+  #return np.linalg.norm(centerCoor[0:2] - transCoor2D)
+  return math.sqrt((centerCoor[0] - transCoor2D[0])**2 + (centerCoor[1] - transCoor2D[1])**2)
 
 def Cm(frameI, frameJ):
   #-------------------------------------------------------#
@@ -122,10 +127,11 @@ def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
-  lambdaS = 200.0
+  lambdaS = 100.0
   v = speedup
-  g = v + 4
-  w = v + 2
+  g = v + 6
+  w = v + 4
+  frames = frames[0:30]
   L = len(frames)
   Dv= np.zeros([L, L])
   Tv= np.zeros([L, L])
@@ -135,7 +141,10 @@ def generateVideo(frames, speedup, outName):
   for i in range(0, g):
     for j in range(i + 1, min(i + w + 1, L)):
       print(f"\tmatchiing frame {i} with frame {j}")
-      Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
+      CmVal = Cm(frames[i], frames[j])
+      CsVal = lambdaS * Cs(i, j, v)
+      Dv[i, j] = CmVal + CsVal
+      #Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
   
   # Populate Dv
   print("Populating Dv")
@@ -158,7 +167,7 @@ def generateVideo(frames, speedup, outName):
     d = s
     s = b
     print(f"p is {p}")
-  p.insert(0, 2)
+  p.insert(0, s)
   print(f"p is {p}")
 
   fourcc = cv2.VideoWriter_fourcc(*'XVID')
