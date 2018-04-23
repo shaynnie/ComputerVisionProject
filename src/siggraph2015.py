@@ -105,7 +105,7 @@ def Ca(h, i, j):
 def findMinValIdx(i, j, w, Dv):
   minVal = 100000000.0
   minIdx = 0
-  lambdaA = 80.0
+  lambdaA = 40.0
   for k in range(1, w + 1):
     if (Dv[i - k, i] + lambdaA * Ca(i - k, i, j)) < minVal:
       minVal = (Dv[i - k, i] + lambdaA * Ca(i - k, i, j))
@@ -129,9 +129,9 @@ def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   lambdaS = 100.0
   v = speedup
-  g = v + 6
-  w = v + 4
-  frames = frames[0:30]
+  g = v + 11
+  w = v + 10
+  frames = frames[0:60]
   L = len(frames)
   Dv= np.zeros([L, L])
   Tv= np.zeros([L, L])
