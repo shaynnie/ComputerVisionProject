@@ -21,7 +21,7 @@ def readVideo(inputName):
   while (capture.isOpened()):
     valid, frame = capture.read()
     if valid:
-      ret.append(frame)
+      ret.append(frame[270:810, 480:1440, :])
     else:
       break
   capture.release()
@@ -42,26 +42,31 @@ def Cr(img1, img2):
   #---------------------------------------------------------#
   # Cr = reconstruction error                               #
   #---------------------------------------------------------#
-  sift = cv2.xfeatures2d.SIFT_create()
+  #sift = cv2.xfeatures2d.ORB_create()
   # find the keypoints and descriptors with SIFT
-  kp1, des1 = sift.detectAndCompute(img1,None)
-  kp2, des2 = sift.detectAndCompute(img2,None)
+  orb = cv2.ORB_create()
+  #kp1, des1 = sift.detectAndCompute(img1,None)
+  #kp2, des2 = sift.detectAndCompute(img2,None)
+  kp1, des1 = orb.detectAndCompute(img1, None)
+  kp2, des2 = orb.detectAndCompute(img2, None)
   # FLANN parameters
-  FLANN_INDEX_KDTREE = 0
-  index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-  search_params = dict(checks=50)
-  flann = cv2.FlannBasedMatcher(index_params,search_params)
+  #FLANN_INDEX_KDTREE = 0
+  #index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+  #search_params = dict(checks=50)
+  #flann = cv2.FlannBasedMatcher(index_params,search_params)
   # Find nearest 2 neighbors
-  feature_matches = flann.knnMatch(des1,des2,k=2)
+  #feature_matches = flann.knnMatch(des1,des2,k=2)
   # store all the good matches as per Lowe's ratio test.
-  good = []
-  for m,n in feature_matches:
-    if m.distance < 0.7*n.distance:
-      good.append(m)
-  img1_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
-  img2_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
+  bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck = True)
+  matches = bf.match(des1, des2)
+  #good = []
+  #for m,n in feature_matches:
+  #  if m.distance < 0.5*n.distance:
+  #    good.append(m)
+  img1_pts = np.float32([ kp1[m.queryIdx].pt for m in matches ]).reshape(-1,2)
+  img2_pts = np.float32([ kp2[m.trainIdx].pt for m in matches ]).reshape(-1,2)
   # img2_pts_i = H * img1_pts_i
-  H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=15.0)
+  H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=5.0)
 
   img1_pts_inliers = [[x,y] for i,[x,y] in enumerate(img1_pts) if mask[i]==1]
   img2_pts_inliers = [[x,y] for i,[x,y] in enumerate(img2_pts) if mask[i]==1]
@@ -97,8 +102,8 @@ def Cm(frameI, frameJ):
     return Co(frameI, H)
 
 def Cs(i, j, v):
-  lambdaS = 5.0
-  return min(lambdaS * ((j - i - v) ** 2), 200)
+  lambdaS = 3.0
+  return min(lambdaS * abs(j - i - v), 100)
 
 def Ca(h, i, j):
   return min((abs(j - i) - abs(i - h)) ** 2, 200)
@@ -118,8 +123,8 @@ def argMinMatrix(L, g, w, Dv):
   d = 0
   minCost= 100000000.0
   for i in range(L - g, L):
-    for j in range(i + 1, min(i + w, L)):
-      print(f"cost of block ({i}, {j}) is {Dv[i, j]}")
+    for j in range(i + int(w/2), min(i + w + int(w/2), L)):
+      #print(f"cost of block ({i}, {j}) is {Dv[i, j]}")
       if Dv[i,j] < minCost:
         minCost= Dv[i, j]
         s = i
@@ -131,31 +136,34 @@ def generateVideo(frames, speedup, outName):
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
   v = speedup
-  g = v + 11
-  w = v + 10
+  g = v + 1
+  w = v
   L = len(frames)
-  Dv= np.zeros([L, L])
+  print(f"{frames[0].shape}")
+  Dv= np.ones([L, L]) * 10000000.0
   Tv= np.zeros([L, L])
   # Initialize Dv
   print("Initializing Dv")
   for i in range(0, g):
-    for j in range(i + 1, min(i + w, L)):
+    print(f"\tdealing with frame {i}")
+    for j in range(i + int(w/2), min(i + w + int(w/2), L)):
       CmVal = Cm(frames[i], frames[j])
       CsVal = Cs(i, j, v)
-      print(f"\tmatchiing frame {i} with frame {j}, Cm is {CmVal}, Cs is {CsVal}")
+      #print(f"\tmatchiing frame {i} with frame {j}, Cm is {CmVal}, Cs is {CsVal}")
       Dv[i, j] = CmVal + CsVal
       #Dv[i, j] = Cm(frames[i], frames[j]) + lambdaS * Cs(i, j, v)
   
   # Populate Dv
   print("Populating Dv")
   for i in range(g, L):
-    for j in range(i + 1, min(i + w, L)):
+    print(f"\tdealing with frame {i}")
+    for j in range(i + int(w/2), min(i + w + int(w/2), L)):
       CmVal = Cm(frames[i], frames[j])
       CsVal = Cs(i, j, v)
       c = CmVal + CsVal
-      print(f"\tcomputing cost for frame {i} with frame {j}, Cm is {CmVal}, Cs is {CsVal}")
+      #print(f"\tcomputing cost for frame {i} with frame {j}, Cm is {CmVal}, Cs is {CsVal}")
       minCost, argMin = findMinValIdx(i, j, w, Dv)
-      print(f"\tbest backtracking is from frame {argMin} to frame {i}, having cost {Dv[argMin, i]}")
+#      print(f"\tbest backtracking is from frame {argMin} to frame {i}, having cost {Dv[argMin, i]}")
       Dv[i, j] = c + minCost
       Tv[i, j] = argMin
   
@@ -169,17 +177,23 @@ def generateVideo(frames, speedup, outName):
     b = int(Tv[s,d])
     d = s
     s = b
-    print(f"p is {p}")
   p.insert(0, s)
   print(f"p is {p}")
 
-  out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (1920, 1080))
+  out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 1080))
+  bfIdx = 0
   for idx in p:
-    out.write(frames[idx])
+    thisFrame = np.concatenate((frames[idx], frames[bfIdx]), axis=0)
+    out.write(thisFrame)
+    bfIdx += v
+    if bfIdx >= L:
+      bfIdx = L -1
   out.release()
-  out = cv2.VideoWriter('outputNoAlg.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (1920, 1080))
+  '''
+  out = cv2.VideoWriter('outputNoAlg.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 540))
   idx = 0
   while idx < L:
     out.write(frames[idx])
     idx += v
   out.release()
+  '''
