@@ -62,6 +62,7 @@ def find_matching(img1, img2):
 # 			matches(i,3:4) is the corresponding point in the second image
 def find_camera_pose(matches, K1, K2):
 	(F, res_err) = fundamental_matrix(matches)
+
 	E = K2.T @ F @ K1
 
 	(R, t) = find_rotation_translation(E)
@@ -86,10 +87,10 @@ def find_camera_pose(matches, K1, K2):
 
 	t2 = t[ti[0]]
 	R2 = R[ri[0]]
-	return R2, t2
+	return R2, t2, errs[ti[0],ri[0]]
 
 
-def visualize(t, R, matches, img1, img2):
+def visualize(t, R, K1, K2, matches, img1, img2):
 	pt1 = np.concatenate((matches[:, 0:2], np.ones((matches.shape[0], 1))), axis=1)
 	pt2 = np.concatenate((matches[:, 2:], np.ones((matches.shape[0], 1))), axis=1)
 
@@ -131,7 +132,7 @@ def unit_test():
 
 	start = time.time()
 	matches= find_matching(img1, img2)
-	R, t = find_camera_pose(matches, K1, K2)
+	R, t, _ = find_camera_pose(matches, K1, K2)
 
 	duration = time.time() - start
 	print(f"feature matching time={duration}")
