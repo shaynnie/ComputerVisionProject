@@ -92,6 +92,11 @@ def stablizedVideoRigid(frames):
 	plt.plot(x,xTrajSmooth,'r:', x,yTrajSmooth,'b:')
 	plt.show()
 
+	corners = np.array([[0,0,1], [0,rows,1], [cols,0,1], [cols,rows,1]])
+	xLeft = 0
+	xRight = cols
+	yUp = 0
+	yDown = rows
 	for i in range(L-1):
 		print(f"transforming frame {i}")
 		dx = transforms[i][0] + xTrajSmooth[i] - xTraj[i]
@@ -101,12 +106,29 @@ def stablizedVideoRigid(frames):
 		outImg = cv2.warpAffine(frames[i], A, (cols,rows))
 		outFrames.append(outImg)
 
+		outCorners = (A @ corners.T).T
+		xl = max(outCorners[0,0], outCorners[1,0])
+		xr = min(outCorners[2,0], outCorners[3,0])
+		yu = max(outCorners[0,1], outCorners[2,1])
+		yd = min(outCorners[1,1], outCorners[3,1])
+		if (xl > 0.1*cols) or (xr < 0.9*cols) or (yu > 0.1*rows) or (yd < 0.9*rows):
+			continue
+		xLeft = max(xLeft, xl)
+		xRight = min(xRight, xr)
+		yUp = max(yUp, yu)
+		yDown = min(yDown, yd)
 	outFrames.append(frames[L-1])
 
-	out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cols, rows))
-	for f in outFrames:
+	# cropping
+	cropped = []
+	for frame in outFrames:
+		cropped.append(frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
+
+	out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], cropped[0].shape[0]))
+	for f in cropped:
 		out.write(f)
 	out.release()
+	cv2.imwrite('cropped_frame.jpg',cropped[0])
 
 if __name__ == '__main__':
 	if len(sys.argv) != 2:
