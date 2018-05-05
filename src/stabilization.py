@@ -122,7 +122,7 @@ def stablizedVideoRigid(frames):
 	# cropping
 	cropped = []
 	for frame in outFrames:
-		cropped.append(frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
+		cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
 
 	out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], cropped[0].shape[0]))
 	for f in cropped:
@@ -131,11 +131,11 @@ def stablizedVideoRigid(frames):
 	cv2.imwrite('cropped_frame.jpg',cropped[0])
 
 if __name__ == '__main__':
-	if len(sys.argv) != 2:
-	    print("Usage:python stabilization.py inputVideo")
-	    sys.exit()
-	sys.argv
-	frames = alg.readVideo(sys.argv[1])
-	stablizedVideoRigid(frames)
+  if len(sys.argv) != 2:
+    print("Usage:python stabilization.py inputVideo")
+    sys.exit()
+  sys.argv
+  frames = alg.readVideo(sys.argv[1])
+  stablizedVideoRigid(frames)
 
 

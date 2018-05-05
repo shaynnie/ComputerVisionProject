@@ -178,14 +178,16 @@ def generateVideo(frames, speedup, outName):
     d = s
     s = b
   p.insert(0, s)
-  print(f"p is {p}")
+  #print(f"p is {p}")
 
   out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 1080))
+  actualSpeedUp = math.ceil(L / len(p))
+  print(f"actuall speedup is {actualSpeedUp}")
   bfIdx = 0
   for idx in p:
     thisFrame = np.concatenate((frames[idx], frames[bfIdx]), axis=0)
     out.write(thisFrame)
-    bfIdx += v
+    bfIdx += actualSpeedUp
     if bfIdx >= L:
       bfIdx = L -1
   out.release()
