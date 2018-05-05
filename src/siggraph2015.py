@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import stabilization as stb
 import math
 from matplotlib.lines import Line2D
 import cv2
@@ -139,7 +140,6 @@ def generateVideo(frames, speedup, outName):
   g = v + 1
   w = v
   L = len(frames)
-  print(f"{frames[0].shape}")
   Dv= np.ones([L, L]) * 10000000.0
   Tv= np.zeros([L, L])
   # Initialize Dv
@@ -179,10 +179,11 @@ def generateVideo(frames, speedup, outName):
     s = b
   p.insert(0, s)
   #print(f"p is {p}")
-
-  out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 1080))
-  actualSpeedUp = math.ceil(L / len(p))
-  print(f"actuall speedup is {actualSpeedUp}")
+  actualSpeedUp = 1.0 * L / len(p)
+  print(f"Smoothing completed, desired speedup is {v}, actuall speedup is {actualSpeedUp}")
+  actualSpeedUp = math.ceil(actualSpeedUp)
+  out = cv2.VideoWriter('outputNoWrapping.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 1080))
+  print("Writing intermediate results to outputNoWrapping.avi")
   bfIdx = 0
   for idx in p:
     thisFrame = np.concatenate((frames[idx], frames[bfIdx]), axis=0)
@@ -191,11 +192,4 @@ def generateVideo(frames, speedup, outName):
     if bfIdx >= L:
       bfIdx = L -1
   out.release()
-  '''
-  out = cv2.VideoWriter('outputNoAlg.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 540))
-  idx = 0
-  while idx < L:
-    out.write(frames[idx])
-    idx += v
-  out.release()
-  '''
+  stb.stablizedVideoRigid(frames, p)

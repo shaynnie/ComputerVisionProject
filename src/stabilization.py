@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import sys
-import siggraph2015 as alg
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from scipy.ndimage.filters import gaussian_filter1d
@@ -55,87 +54,91 @@ def computeEuclieanMatrix(dx,dy,da):
 	A[1,2] = dy
 	return A
 
-def stablizedVideoRigid(frames):
-	outFrames = []
-	transforms = []
-	xTraj = []
-	yTraj = []
-	aTraj = []
-	x = 0.0
-	y = 0.0
-	a = 0.0
-	L = len(frames)
-	curFrame = frames[0]
-	cols = frames[0].shape[1]
-	rows = frames[0].shape[0]
+def getSubsetFrames(frames, p):
+  newFrames = []
+  for idx in p:
+    newFrames.append(frames[idx])
+  return newFrames
 
-	for i in range(1,L):
-		print(f"obtaining rigid transform from frame {i} to {i-1}")
-		prevFrame = curFrame
-		curFrame = frames[i]
-		dx, dy, da = getRigidTransform(prevFrame, curFrame)
-		transforms.append([dx, dy, da])
-		x = x + dx
-		y = y + dy
-		a = a + da
-		xTraj.append(x)
-		yTraj.append(y)
-		aTraj.append(a)
+def stablizedVideoRigid(allFrames, p):
+  #-----------------------------------------------------#
+  # allFrames: ALL frames from the video                   #
+  # p: list containing indices of optimal frame selected#
+  #    from previous path planning                      #
+  #-----------------------------------------------------#
+  frames = getSubsetFrames(allFrames, p)
+  outFrames = []
+  transforms = []
+  xTraj = []
+  yTraj = []
+  aTraj = []
+  x = 0.0
+  y = 0.0
+  a = 0.0
+  L = len(frames)
+  curFrame = frames[0]
+  cols = frames[0].shape[1]
+  rows = frames[0].shape[0]
+  for i in range(1,L):
+    print(f"obtaining rigid transform from frame {i} to {i-1}")
+    prevFrame = curFrame
+    curFrame = frames[i]
+    dx, dy, da = getRigidTransform(prevFrame, curFrame)
+    transforms.append([dx, dy, da])
+    x = x + dx
+    y = y + dy
+    a = a + da
+    xTraj.append(x)
+    yTraj.append(y)
+    aTraj.append(a)
 
-	SIGMA = 5
-	xTrajSmooth = gaussian_filter1d(xTraj, sigma=SIGMA)
-	yTrajSmooth = gaussian_filter1d(yTraj, sigma=SIGMA)
-	aTrajSmooth = gaussian_filter1d(aTraj, sigma=SIGMA)
+  SIGMA = 5
+  xTrajSmooth = gaussian_filter1d(xTraj, sigma=SIGMA)
+  yTrajSmooth = gaussian_filter1d(yTraj, sigma=SIGMA)
+  aTrajSmooth = gaussian_filter1d(aTraj, sigma=SIGMA)
 
-	x = np.arange(len(xTraj))
-	plt.plot(x,xTraj,'r--', x,yTraj,'b--')
-	plt.plot(x,xTrajSmooth,'r:', x,yTrajSmooth,'b:')
-	plt.show()
+  x = np.arange(len(xTraj))
+  plt.plot(x,xTraj,'r--', x,yTraj,'b--')
+  plt.plot(x,xTrajSmooth,'r:', x,yTrajSmooth,'b:')
+  plt.show()
 
-	corners = np.array([[0,0,1], [0,rows,1], [cols,0,1], [cols,rows,1]])
-	xLeft = 0
-	xRight = cols
-	yUp = 0
-	yDown = rows
-	for i in range(L-1):
-		print(f"transforming frame {i}")
-		dx = transforms[i][0] + xTrajSmooth[i] - xTraj[i]
-		dy = transforms[i][1] + yTrajSmooth[i] - yTraj[i]
-		da = transforms[i][2] + aTrajSmooth[i] - aTraj[i]
-		A = computeEuclieanMatrix(dx,dy,da)
-		outImg = cv2.warpAffine(frames[i], A, (cols,rows))
-		outFrames.append(outImg)
+  corners = np.array([[0,0,1], [0,rows,1], [cols,0,1], [cols,rows,1]])
+  xLeft = 0
+  xRight = cols
+  yUp = 0
+  yDown = rows
+  # transforms[i]: rigid transform parameters from frame i + 1 to frame i
+  for i in range(L-1):
+    print(f"transforming frame {i}")
+    #    [frame i + 1 + k to frame i + 1] + [frame i + 1 to frame i] + [shift of frame i]
+    dx = transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
+    dy = transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
+    da = transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
+    A = computeEuclieanMatrix(dx,dy,da)
+    outImg = cv2.warpAffine(frames[i], A, (cols,rows))
+    mask = np.array(outImg != )
+    outFrames.append(outImg)
 
-		outCorners = (A @ corners.T).T
-		xl = max(outCorners[0,0], outCorners[1,0])
-		xr = min(outCorners[2,0], outCorners[3,0])
-		yu = max(outCorners[0,1], outCorners[2,1])
-		yd = min(outCorners[1,1], outCorners[3,1])
-		if (xl > 0.1*cols) or (xr < 0.9*cols) or (yu > 0.1*rows) or (yd < 0.9*rows):
-			continue
-		xLeft = max(xLeft, xl)
-		xRight = min(xRight, xr)
-		yUp = max(yUp, yu)
-		yDown = min(yDown, yd)
-	outFrames.append(frames[L-1])
+    outCorners = (A @ corners.T).T
+    xl = max(outCorners[0,0], outCorners[1,0])
+    xr = min(outCorners[2,0], outCorners[3,0])
+    yu = max(outCorners[0,1], outCorners[2,1])
+    yd = min(outCorners[1,1], outCorners[3,1])
+    if (xl > 0.1*cols) or (xr < 0.9*cols) or (yu > 0.1*rows) or (yd < 0.9*rows):
+      continue
+    xLeft = max(xLeft, xl)
+    xRight = min(xRight, xr)
+    yUp = max(yUp, yu)
+    yDown = min(yDown, yd)
+  outFrames.append(frames[L-1])
+  
+  # cropping
+  cropped = []
+  for frame in outFrames:
+    cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
 
-	# cropping
-	cropped = []
-	for frame in outFrames:
-		cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
-
-	out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], cropped[0].shape[0]))
-	for f in cropped:
-		out.write(f)
-	out.release()
-	cv2.imwrite('cropped_frame.jpg',cropped[0])
-
-if __name__ == '__main__':
-  if len(sys.argv) != 2:
-    print("Usage:python stabilization.py inputVideo")
-    sys.exit()
-  sys.argv
-  frames = alg.readVideo(sys.argv[1])
-  stablizedVideoRigid(frames)
-
-
+  out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], cropped[0].shape[0]))
+  for f in cropped:
+    out.write(f)
+  out.release()
+  #cv2.imwrite('cropped_frame.jpg',cropped[0])
