@@ -7,25 +7,24 @@ from scipy.ndimage.filters import gaussian_filter1d
 
 # Finds A: img2 = A * img1
 def getRigidTransform(img1, img2):
-  '''
-	# find the keypoints and descriptors with SIFT
-	sift = cv2.xfeatures2d.SIFT_create()
-	kp1, des1 = sift.detectAndCompute(img1,None)
-	kp2, des2 = sift.detectAndCompute(img2,None)
-	# FLANN parameters
-	FLANN_INDEX_KDTREE = 0
-	index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-	search_params = dict(checks=50)
-	flann = cv2.FlannBasedMatcher(index_params,search_params)
-	# Find nearest 2 neighbors
-	feature_matches = flann.knnMatch(des1,des2,k=2)
-	# store all the good matches as per Lowe's ratio test.
-	good = []
-	for m,n in feature_matches:
-		if m.distance < 0.7*n.distance:
-			good.append(m)
-	img1_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
-	img2_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
+  # find the keypoints and descriptors with SIFT
+  sift = cv2.xfeatures2d.SIFT_create()
+  kp1, des1 = sift.detectAndCompute(img1,None)
+  kp2, des2 = sift.detectAndCompute(img2,None)
+  # FLANN parameters
+  FLANN_INDEX_KDTREE = 0
+  index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+  search_params = dict(checks=50)
+  flann = cv2.FlannBasedMatcher(index_params,search_params)
+  # Find nearest 2 neighbors
+  feature_matches = flann.knnMatch(des1,des2,k=2)
+  # store all the good matches as per Lowe's ratio test.
+  good = []
+  for m,n in feature_matches:
+    if m.distance < 0.7*n.distance:
+      good.append(m)
+  img1_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,2)
+  img2_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,2)
   '''
   orb = cv2.ORB_create()
   kp1, des1 = orb.detectAndCompute(img1,None)
@@ -35,6 +34,7 @@ def getRigidTransform(img1, img2):
   matches = bf.match(des1,des2)
   img1_pts = np.float32([ kp1[m.queryIdx].pt for m in matches ]).reshape(-1,2)
   img2_pts = np.float32([ kp2[m.trainIdx].pt for m in matches ]).reshape(-1,2)
+  '''
 
   A = cv2.estimateRigidTransform(img1_pts, img2_pts, False)
   if A is None:
@@ -71,8 +71,26 @@ def getAverage(outImg, j, k):
     if coorX >= 0 and coorY >= 0 and coorX < outImg.shape[0] - 1 and coorY < outImg.shape[1] - 1:
       rgb = rgb + outImg[coorX, coorY, :]
       count += 1
-  rgb = rgb / count
+  rgb = np.floor(rgb / count)
+  rgb.reshape((1,1,3))
+  rgb.astype(np.uint8)
+#  print(f"\t {rgb.shape} {rgb}")
   return rgb
+
+def getMask(img):
+  r = img[:,:,0]
+  g = img[:,:,1]
+  b = img[:,:,2]
+  mr= np.array(r != 0)
+  mg= np.array(g != 0)
+  mb= np.array(b != 0)
+  m = np.logical_or(mr, mg)
+  m = np.logical_or(m, mb)
+  m = np.invert(m)
+  m = np.reshape(m, (m.shape[0], m.shape[1], 1))
+  m_3 = np.concatenate((m, m), axis = 2)
+  m_3 = np.concatenate((m_3, m), axis = 2)
+  return m
 
 def stablizedVideoRigid(allFrames, p):
   #-----------------------------------------------------#
@@ -130,10 +148,14 @@ def stablizedVideoRigid(allFrames, p):
     da = transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
     A = computeEuclieanMatrix(dx,dy,da)
     outImg = cv2.warpAffine(frames[i], A, (cols,rows))
-    mask = np.invert(np.array(outImg != 0))
+    mask = getMask(outImg)
+#    mask = np.invert(np.array(outImg != 0))
     #######################################################
     thisIdx = p[i]
-    searchRange = 10
+    losses  = []
+    models  = []
+    indices = []
+    searchRange = 5
     for j in range(max(0, thisIdx - searchRange), min(len(allFrames) - 1, thisIdx + searchRange)):
       if j == thisIdx:
         continue
@@ -143,10 +165,29 @@ def stablizedVideoRigid(allFrames, p):
       dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
       A = computeEuclieanMatrix(dx,dy,da)
+      losses.append((dx**2 + dy**2 + 0.1 * da**2))
+      models.append(A)
+      indices.append(j)
+      '''
       patch = cv2.warpAffine(allFrames[j], A, (cols, rows))
       patch = np.multiply(patch, mask)
       outImg = outImg + patch
       mask = np.invert(np.array(outImg != 0))
+      '''
+#    print(f"\tloss is {losses}")
+#    print(f"\tmodel is {models}")
+#    print(f"\tindex is {indices}")
+#    print(f"loss is {losses}")
+    sortedModels = [x for _, x in sorted(zip(losses, models))]
+    sortedIndices= [x for _, x in sorted(zip(losses, indices))]
+#    print(f"sorted model is {sortedModels}")
+#    print(f"sorted index is {sortedIndices}")
+    for modelIdx in range(len(sortedModels)):
+      patch = cv2.warpAffine(allFrames[sortedIndices[modelIdx]], sortedModels[modelIdx], (cols, rows))
+      patch = np.multiply(patch, mask)
+      outImg = outImg + patch
+      mask = getMask(outImg)
+#      mask = np.invert(np.array(outImg != 0))      
     '''
     for j in range(searchRange):
       sourceIdx = thisIdx + j
@@ -178,13 +219,12 @@ def stablizedVideoRigid(allFrames, p):
 
     #######################################################
     '''
-    '''
-    for j in range(outImg.shape[0]):
-      for k in range(outImg.shape[1]):
-        if not np.any(outImg[j,k,:]):
-          print(f"position {j}, {k} has no value")
+    for j in range(mask.shape[0]):
+      for k in range(mask.shape[1]):
+        if mask[j,k,0] == 1:
+#          print(f"position {j}, {k} has no value {outImg[j,k,:]}")
           outImg[j,k,:] = getAverage(outImg, j, k)
-    '''
+#          print(f"\t{outImg[j,k,:]}")
     #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
     outFrames.append(outImg)
     '''
@@ -203,9 +243,9 @@ def stablizedVideoRigid(allFrames, p):
   outFrames.append(frames[L-1])
   
   # cropping
-  cropped = []
-  for frame in outFrames:
-    cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
+  cropped = outFrames
+#  for frame in outFrames:
+#    cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
 
   out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], cropped[0].shape[0]))
   for f in cropped:
