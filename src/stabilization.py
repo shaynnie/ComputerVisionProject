@@ -43,14 +43,15 @@ def getRigidTransform(img1, img2):
   dx = A[0,2]
   dy = A[1,2]
   da = np.arctan2(A[1,0], A[0,0])
-  return dx, dy, da
+  ds = np.sqrt(A[0,0]**2 + A[1,0]**2)
+  return dx, dy, da, ds
 
-def computeEuclieanMatrix(dx,dy,da):
+def computeEuclieanMatrix(dx,dy,da,ds):
 	A = np.zeros((2,3))
-	A[0,0] = np.cos(da)
-	A[0,1] = -np.sin(da)
-	A[1,0] = np.sin(da)
-	A[1,1] = np.cos(da)
+	A[0,0] = np.cos(da) * ds
+	A[0,1] = -np.sin(da) * ds
+	A[1,0] = np.sin(da) * ds
+	A[1,1] = np.cos(da) * ds
 	A[0,2] = dx
 	A[1,2] = dy
 	return A
@@ -144,9 +145,11 @@ def stablizedVideoRigid(allFrames, p):
   xTraj = []
   yTraj = []
   aTraj = []
+  sTraj = []
   x = 0.0
   y = 0.0
   a = 0.0
+  s = 1.0
   L = len(frames)
   curFrame = frames[0]
   cols = frames[0].shape[1]
@@ -155,22 +158,25 @@ def stablizedVideoRigid(allFrames, p):
     print(f"obtaining rigid transform from frame {i} to {i-1}")
     prevFrame = curFrame
     curFrame = frames[i]
-    dx, dy, da = getRigidTransform(prevFrame, curFrame)
-    transforms.append([dx, dy, da])
+    dx, dy, da, ds = getRigidTransform(prevFrame, curFrame)
+    transforms.append([dx, dy, da, ds])
     x = x + dx
     y = y + dy
     a = a + da
+    s = s * ds
     xTraj.append(x)
     yTraj.append(y)
     aTraj.append(a)
+    sTraj.append(s)
 
   SIGMA = 5
   xTrajSmooth = gaussian_filter1d(xTraj, sigma=SIGMA)
   yTrajSmooth = gaussian_filter1d(yTraj, sigma=SIGMA)
   aTrajSmooth = gaussian_filter1d(aTraj, sigma=SIGMA)
+  sTrajSmooth = gaussian_filter1d(sTraj, sigma=SIGMA)
 
   x = np.arange(len(xTraj))
-#  plt.plot(x,xTraj,'r--', x,yTraj,'b--')
+  plt.plot(x,sTraj,'r--', x,yTraj,'b--')
 #  plt.plot(x,xTrajSmooth,'r:', x,yTrajSmooth,'b:')
   plt.show()
 
@@ -186,7 +192,8 @@ def stablizedVideoRigid(allFrames, p):
     dx = transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
     dy = transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
     da = transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
-    A = computeEuclieanMatrix(dx,dy,da)
+    ds = 1.0 * transforms[i][3] * sTrajSmooth[i] / sTraj[i]
+    A = computeEuclieanMatrix(dx, dy, da, ds)
     outImg = cv2.warpAffine(frames[i], A, (cols,rows))
     mask = getMask(outImg)
 #    mask = np.invert(np.array(outImg != 0))
@@ -200,11 +207,12 @@ def stablizedVideoRigid(allFrames, p):
       if j == thisIdx:
         continue
 #      dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
-      dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[min(i + 1, L -1)])
+      dx_1, dy_1, da_1, ds_1 = getRigidTransform(allFrames[j], frames[i])
       dx = dx_1 + transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
       dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
-      A = computeEuclieanMatrix(dx,dy,da)
+      ds = 1.0 * ds_1 * transforms[i][3] * sTrajSmooth[i] / sTraj[i]
+      A = computeEuclieanMatrix(dx, dy, da, ds)
       losses.append((dx**2 + dy**2 + 0.1 * da*2))
       models.append(A)
       indices.append(j)
@@ -212,8 +220,10 @@ def stablizedVideoRigid(allFrames, p):
 #    print(f"\tmodel is {models}")
 #    print(f"\tindex is {indices}")
 #    print(f"loss is {losses}")
-    sortedModels = [x for _, x in sorted(zip(losses, models), reverse = True)]
-    sortedIndices= [x for _, x in sorted(zip(losses, indices), reverse = True)]
+    sortedModels = models
+    sortedIndices= indices
+    #sortedModels = [x for _, x in sorted(zip(losses, models), reverse = True)]
+    #sortedIndices= [x for _, x in sorted(zip(losses, indices), reverse = True)]
 #    print(f"sorted model is {sortedModels}")
 #    print(f"sorted index is {sortedIndices}")
     for modelIdx in range(len(sortedModels)):
@@ -221,11 +231,12 @@ def stablizedVideoRigid(allFrames, p):
       patch = np.multiply(patch, mask)
       outImg = outImg + patch
       mask = getMask(outImg)
+#      cv2.imwrite(f'cropped_frame{i}_iteration{modelIdx}.jpg',outImg)
 #      mask = np.invert(np.array(outImg != 0))      
     mask = getMask(outImg)
     for j in range(outImg.shape[0]):
       for k in range(outImg.shape[1]):
-        if outImg[j,k,0] == 1:
+        if outImg[j,k,0] == 0 and outImg[j,k,1] == 0 and outImg[j,k,2] == 0 :
 #          print(f"position {j}, {k} has no value {outImg[j,k,:]}")
           outImg[j,k,:] = getAverage(outImg, j, k)
 #          print(f"\t{outImg[j,k,:]}")

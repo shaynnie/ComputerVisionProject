@@ -136,7 +136,7 @@ def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
- # frames = frames[0:30]
+  frames = frames[0:30]
   v = speedup
   g = v + 1
   w = v
