@@ -36,7 +36,7 @@ def getRigidTransform(img1, img2):
   img1_pts = np.float32([ kp1[m.queryIdx].pt for m in matches ]).reshape(-1,2)
   img2_pts = np.float32([ kp2[m.trainIdx].pt for m in matches ]).reshape(-1,2)
 
-  A = cv2.estimateRigidTransform(img1_pts, img2_pts, True)
+  A = cv2.estimateRigidTransform(img1_pts, img2_pts, False)
   #A = cv2.getAffineTransform(img1_pts, img2_pts, False)
   if A is None:
     return 0,0,0
@@ -205,15 +205,9 @@ def stablizedVideoRigid(allFrames, p):
       dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
       A = computeEuclieanMatrix(dx,dy,da)
-      losses.append((dx**2 + dy**2 + 0.1 * da**2))
+      losses.append((dx**2 + dy**2 + 0.1 * da*2))
       models.append(A)
       indices.append(j)
-      '''
-      patch = cv2.warpAffine(allFrames[j], A, (cols, rows))
-      patch = np.multiply(patch, mask)
-      outImg = outImg + patch
-      mask = np.invert(np.array(outImg != 0))
-      '''
 #    print(f"\tloss is {losses}")
 #    print(f"\tmodel is {models}")
 #    print(f"\tindex is {indices}")
@@ -229,37 +223,6 @@ def stablizedVideoRigid(allFrames, p):
       mask = getMask(outImg)
 #      mask = np.invert(np.array(outImg != 0))      
     mask = getMask(outImg)
-    '''
-    for j in range(searchRange):
-      sourceIdx = thisIdx + j
-      ### Postive
-      if sourceIdx >= 0 and sourceIdx < len(allFrames):
-        dx_1, dy_1, da_1 = getRigidTransform(allFrames[sourceIdx], frames[i])
-      #dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
-        dx = dx_1 + transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
-        dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
-        da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
-        A = computeEuclieanMatrix(dx,dy,da)
-        patch = cv2.warpAffine(allFrames[j], A, (cols, rows))
-        patch = np.multiply(patch, mask)
-        outImg = outImg + patch
-        mask = np.invert(np.array(outImg != 0))
-      sourceIdx = thisIdx - j
-      if sourceIdx >= 0 and sourceIdx < len(allFrames):
-        dx_1, dy_1, da_1 = getRigidTransform(allFrames[sourceIdx], frames[i])
-      #dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
-        dx = dx_1 + transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
-        dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
-        da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
-        A = computeEuclieanMatrix(dx,dy,da)
-        patch = cv2.warpAffine(allFrames[j], A, (cols, rows))
-        patch = np.multiply(patch, mask)
-        outImg = outImg + patch
-        mask = np.invert(np.array(outImg != 0))
-      ### Negative
-
-    #######################################################
-    '''
     for j in range(outImg.shape[0]):
       for k in range(outImg.shape[1]):
         if outImg[j,k,0] == 1:
@@ -268,19 +231,6 @@ def stablizedVideoRigid(allFrames, p):
 #          print(f"\t{outImg[j,k,:]}")
     #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
     outFrames.append(outImg)
-    '''
-    outCorners = (A @ corners.T).T
-    xl = max(outCorners[0,0], outCorners[1,0])
-    xr = min(outCorners[2,0], outCorners[3,0])
-    yu = max(outCorners[0,1], outCorners[2,1])
-    yd = min(outCorners[1,1], outCorners[3,1])
-    if (xl > 0.1*cols) or (xr < 0.9*cols) or (yu > 0.1*rows) or (yd < 0.9*rows):
-      continue
-    xLeft = max(xLeft, xl)
-    xRight = min(xRight, xr)
-    yUp = max(yUp, yu)
-    yDown = min(yDown, yd)
-    '''
   outFrames.append(frames[L-1])
   
   # cropping
