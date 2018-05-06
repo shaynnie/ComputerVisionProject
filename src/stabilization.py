@@ -8,6 +8,7 @@ from scipy.ndimage.filters import gaussian_filter1d
 # Finds A: img2 = A * img1
 def getRigidTransform(img1, img2):
   # find the keypoints and descriptors with SIFT
+  '''
   sift = cv2.xfeatures2d.SIFT_create()
   kp1, des1 = sift.detectAndCompute(img1,None)
   kp2, des2 = sift.detectAndCompute(img2,None)
@@ -34,9 +35,9 @@ def getRigidTransform(img1, img2):
   matches = bf.match(des1,des2)
   img1_pts = np.float32([ kp1[m.queryIdx].pt for m in matches ]).reshape(-1,2)
   img2_pts = np.float32([ kp2[m.trainIdx].pt for m in matches ]).reshape(-1,2)
-  '''
 
-  A = cv2.estimateRigidTransform(img1_pts, img2_pts, False)
+  A = cv2.estimateRigidTransform(img1_pts, img2_pts, True)
+  #A = cv2.getAffineTransform(img1_pts, img2_pts, False)
   if A is None:
     return 0,0,0
   dx = A[0,2]
@@ -61,6 +62,44 @@ def getSubsetFrames(frames, p):
   return newFrames
 
 def getAverage(outImg, j, k):
+  if (j == outImg.shape[0] - 1 or j == 0):
+    rgb = np.array([0,0,0])
+    count = 0
+    if k - 1 >= 0:
+      rgb += outImg[j, k-1, :]
+      count += 1
+    if k + 1 < outImg.shape[1]:
+      rgb += outImg[j, k+1, :]
+      count += 1
+    rgb = np.floor(rgb / count)
+    rgb.reshape((1,1,3))
+    rgb.astype(np.uint8)
+    return rgb
+  elif (k == outImg.shape[1] - 1 or k == 0):
+    rgb = np.array([0,0,0])
+    count = 0
+    if j - 1 >= 0:
+      rgb += outImg[j-1, k, :]
+      count += 1
+    if k + 1 < outImg.shape[1]:
+      rgb += outImg[j+1, k, :]
+      count += 1
+    rgb = np.floor(rgb / count)
+    rgb.reshape((1,1,3))
+    rgb.astype(np.uint8)
+    return rgb
+  else:
+    jGrad = np.sum(np.abs(outImg[j+1, k, :] - outImg[j-1, k, :]))
+    kGrad = np.sum(np.abs(outImg[j, k+1, :] - outImg[j, k-1, :]))
+    if jGrad > kGrad:
+      rgb = (outImg[j+1, k, :] + outImg[j-1, k, :])/2 
+    else:
+      rgb = (outImg[j, k+1, :] + outImg[j, k-1, :])/2 
+    rgb = np.floor(rgb)
+    rgb.reshape((1,1,3))
+    rgb.astype(np.uint8)
+    return rgb
+  '''
   coorListX = [-1, 1, -1, 1]
   coorListY = [1, -1, -1, 1]
   rgb = np.array([0,0,0])
@@ -75,7 +114,8 @@ def getAverage(outImg, j, k):
   rgb.reshape((1,1,3))
   rgb.astype(np.uint8)
 #  print(f"\t {rgb.shape} {rgb}")
-  return rgb
+  '''
+  #return rgb
 
 def getMask(img):
   r = img[:,:,0]
@@ -178,8 +218,8 @@ def stablizedVideoRigid(allFrames, p):
 #    print(f"\tmodel is {models}")
 #    print(f"\tindex is {indices}")
 #    print(f"loss is {losses}")
-    sortedModels = [x for _, x in sorted(zip(losses, models))]
-    sortedIndices= [x for _, x in sorted(zip(losses, indices))]
+    sortedModels = [x for _, x in sorted(zip(losses, models), reverse = True)]
+    sortedIndices= [x for _, x in sorted(zip(losses, indices), reverse = True)]
 #    print(f"sorted model is {sortedModels}")
 #    print(f"sorted index is {sortedIndices}")
     for modelIdx in range(len(sortedModels)):
@@ -188,6 +228,7 @@ def stablizedVideoRigid(allFrames, p):
       outImg = outImg + patch
       mask = getMask(outImg)
 #      mask = np.invert(np.array(outImg != 0))      
+    mask = getMask(outImg)
     '''
     for j in range(searchRange):
       sourceIdx = thisIdx + j
@@ -219,9 +260,9 @@ def stablizedVideoRigid(allFrames, p):
 
     #######################################################
     '''
-    for j in range(mask.shape[0]):
-      for k in range(mask.shape[1]):
-        if mask[j,k,0] == 1:
+    for j in range(outImg.shape[0]):
+      for k in range(outImg.shape[1]):
+        if outImg[j,k,0] == 1:
 #          print(f"position {j}, {k} has no value {outImg[j,k,:]}")
           outImg[j,k,:] = getAverage(outImg, j, k)
 #          print(f"\t{outImg[j,k,:]}")
