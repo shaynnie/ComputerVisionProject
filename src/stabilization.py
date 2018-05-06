@@ -133,11 +133,12 @@ def stablizedVideoRigid(allFrames, p):
     mask = np.invert(np.array(outImg != 0))
     #######################################################
     thisIdx = p[i]
-    searchRange = 20
+    searchRange = 10
     for j in range(max(0, thisIdx - searchRange), min(len(allFrames) - 1, thisIdx + searchRange)):
       if j == thisIdx:
         continue
-      dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
+#      dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
+      dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[min(i + 1, L -1)])
       dx = dx_1 + transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
       dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
@@ -146,7 +147,37 @@ def stablizedVideoRigid(allFrames, p):
       patch = np.multiply(patch, mask)
       outImg = outImg + patch
       mask = np.invert(np.array(outImg != 0))
+    '''
+    for j in range(searchRange):
+      sourceIdx = thisIdx + j
+      ### Postive
+      if sourceIdx >= 0 and sourceIdx < len(allFrames):
+        dx_1, dy_1, da_1 = getRigidTransform(allFrames[sourceIdx], frames[i])
+      #dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
+        dx = dx_1 + transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
+        dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
+        da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
+        A = computeEuclieanMatrix(dx,dy,da)
+        patch = cv2.warpAffine(allFrames[j], A, (cols, rows))
+        patch = np.multiply(patch, mask)
+        outImg = outImg + patch
+        mask = np.invert(np.array(outImg != 0))
+      sourceIdx = thisIdx - j
+      if sourceIdx >= 0 and sourceIdx < len(allFrames):
+        dx_1, dy_1, da_1 = getRigidTransform(allFrames[sourceIdx], frames[i])
+      #dx_1, dy_1, da_1 = getRigidTransform(allFrames[j], frames[i])
+        dx = dx_1 + transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
+        dy = dy_1 + transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
+        da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
+        A = computeEuclieanMatrix(dx,dy,da)
+        patch = cv2.warpAffine(allFrames[j], A, (cols, rows))
+        patch = np.multiply(patch, mask)
+        outImg = outImg + patch
+        mask = np.invert(np.array(outImg != 0))
+      ### Negative
+
     #######################################################
+    '''
     '''
     for j in range(outImg.shape[0]):
       for k in range(outImg.shape[1]):
