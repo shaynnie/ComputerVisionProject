@@ -98,9 +98,62 @@ def getAverage(outImg, j, k):
       count += 1
       rgb += outImg[j+1, k, :]
   else:
+    flag = 20
+    jConf = np.sum(outImg[j+1, k, :]) + np.sum(outImg[j-1, k, :])
+    kConf = np.sum(outImg[j, k+1, :]) + np.sum(outImg[j, k-1, :])
+    t1Conf = np.sum(outImg[j+1, k+1, :]) + np.sum(outImg[j-1, k-1, :])
+    t2Conf = np.sum(outImg[j+1, k-1, :]) + np.sum(outImg[j-1, k+1, :])
+    if jConf > kConf and jConf > t1Conf and jConf > t2Conf:
+      # Use pixels in j direction
+      if np.sum(outImg[j-1, k, :] - outImg[j+1, k, :]) > flag:
+        count = 1
+        rgb = outImg[j-1, k, :]
+      elif np.sum(outImg[j+1, k, :] - outImg[j-1, k, :]) > flag:
+        count = 1
+        rgb = outImg[j+1, k, :]
+      else:
+        count = 2
+        rgb += outImg[j-1, k, :]
+        rgb += outImg[j+1, k, :]
+    elif kConf > jConf and kConf > t1Conf and kConf > t2Conf:
+      # Use pixels in k direction
+      if np.sum(outImg[j, k+1, :] - outImg[j, k-1, :]) > flag:
+        count = 1
+        rgb = outImg[j, k+1, :]
+      elif np.sum(outImg[j, k-1, :] - outImg[j, k+1, :]) > flag:
+        count = 1
+        rgb = outImg[j, k-1, :]
+      else:
+        count = 2
+        rgb += outImg[j, k-1, :]
+        rgb += outImg[j, k+1, :]
+    elif t1Conf > jConf and t1Conf > kConf and t1Conf > t2Conf:
+      # Use pixels in t1 direction
+      if np.sum(outImg[j+1, k+1, :] - outImg[j-1, k-1, :]) > flag:
+        count = 1
+        rgb = outImg[j+1, k+1, :]
+      elif np.sum(outImg[j-1, k-1, :] - outImg[j+1, k+1, :]) > flag:
+        count = 1
+        rgb = outImg[j-1, k-1, :]
+      else:
+        count = 2
+        rgb += outImg[j-1, k-1, :]
+        rgb += outImg[j+1, k+1, :]
+    else:
+      # Use pixels in t2 direction
+      if np.sum(outImg[j-1, k+1, :] - outImg[j+1, k-1, :]) > flag:
+        count = 1
+        rgb = outImg[j-1, k+1, :]
+      elif np.sum(outImg[j+1, k-1, :] - outImg[j-1, k+1, :]) > flag:
+        count = 1
+        rgb = outImg[j+1, k-1, :]
+      else:
+        count = 2
+        rgb += outImg[j-1, k+1, :]
+        rgb += outImg[j+1, k-1, :]
+    '''
     jDiff = np.sum(np.abs(outImg[j+1, k, :] - outImg[j, k, :])) + np.sum(np.abs(outImg[j-1, k, :] - outImg[j, k, :]))
     kDiff = np.sum(np.abs(outImg[j, k+1, :] - outImg[j, k, :])) + np.sum(np.abs(outImg[j, k-1, :] - outImg[j, k, :]))
-    flag = 60
     if jDiff > kDiff:
       if np.sum(outImg[j-1, k, :] - outImg[j+1, k, :]) > flag:
         count = 1
@@ -127,6 +180,7 @@ def getAverage(outImg, j, k):
 #      rgb += outImg[j, k+1, :]
 #      if np.sum(np.abs(outImg[j, k-1, :] - outImg[j, k+1, :])) > 90:
 #        count = count - 1
+    '''
   if count > 2:
     print("count larger than 2!!")
     sys.exit()
@@ -223,6 +277,19 @@ def stablizedVideoRigid(allFrames, p):
     da = transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
     ds = 1.0 * transforms[i][3] * sTrajSmooth[i] / sTraj[i]
     A = computeEuclieanMatrix(dx, dy, da, ds)
+    outCorners = (A @ corners.T).T
+    xCoor = [outCorners[0,0], outCorners[1,0], outCorners[2,0], outCorners[3,0]]
+    yCoor = [outCorners[0,1], outCorners[1,1], outCorners[2,1], outCorners[3,1]]
+    xCoor.sort()
+    yCoor.sort()
+    xl = xCoor[1]
+    xr = xCoor[2]
+    yu = yCoor[1]
+    yd = yCoor[2]
+#    xl = max(outCorners[0,0], outCorners[1,0])
+#    xr = min(outCorners[2,0], outCorners[3,0])
+#    yu = max(outCorners[0,1], outCorners[2,1])
+#    yd = min(outCorners[1,1], outCorners[3,1])
     outImg = cv2.warpAffine(frames[i], A, (cols,rows))
     mask = getMask(outImg)
 #    mask = np.invert(np.array(outImg != 0))
@@ -276,9 +343,9 @@ def stablizedVideoRigid(allFrames, p):
           outImg[j,k,2] = 0
           print(f"\t{outImg[j,k,:]}")
     '''
+    '''
+    #-------------------------------------------------------------------------#
     thres = 80.0
-    #oldG = np.zeros(outImg.shape[0], outImg.shape[1])    
-    #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
     for iteration in range(3):
       Dx = np.array([[-1,0,1]])
       Dy = np.array([[-1],[0],[1]])
@@ -302,9 +369,9 @@ def stablizedVideoRigid(allFrames, p):
       thick = 60
       for idx1 in range(G.shape[0]):
         for idx2 in range(G.shape[1]):
-          if idx1 > thick and idx1 < (G.shape[0] - thick) and idx2 > thick and idx2 < (G.shape[1] - thick):
+          if idx1 > yu and idx1 < yd and idx2 > xl and idx2 < xr:
             G[idx1, idx2] = 0
-      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type0.jpg', G)
+#      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type0.jpg', G)
       G[G < thres] = 0
       cv2.imwrite(f'cropped_frame{i}_g{iteration}_type1.jpg', G)
       G[G >= thres]= 1
@@ -317,6 +384,51 @@ def stablizedVideoRigid(allFrames, p):
 #            outImg[i1, i2, :] = getAverage(outImg, i1, i2)
       dummyMask = getMask(dummyImg)
       outImg = np.multiply(outImg.astype(np.uint8), dummyMask) + dummyImg.astype(np.uint8)
+    #-------------------------------------------------------------------------#
+    '''
+    #-------------------------------------------------------------------------#
+    thres = 30.0
+    for iteration in range(5):
+      Dx = np.array([[-1,2,-1]])
+      Dy = np.array([[-1],[2],[-1]])
+      r = outImg[:,:,0]
+      g = outImg[:,:,0]
+      b = outImg[:,:,0]
+      Gxr = sc.convolve2d(r, Dx, mode = 'same', boundary = 'symm')
+      Gyr = sc.convolve2d(r, Dy, mode = 'same', boundary = 'symm')
+#      Gxxr= sc.convolve2d(Gxr, Dx, mode = 'same', boundary= 'symm')
+#      Gyyr= sc.convolve2d(Gyr, Dy, mode = 'same', boundary= 'symm')
+      Gxg = sc.convolve2d(g, Dx, mode = 'same', boundary = 'symm')
+      Gyg = sc.convolve2d(g, Dy, mode = 'same', boundary = 'symm')
+#      Gxxg= sc.convolve2d(Gxg, Dx, mode = 'same', boundary= 'symm')
+#      Gyyg= sc.convolve2d(Gyg, Dy, mode = 'same', boundary= 'symm')
+      Gxb = sc.convolve2d(b, Dx, mode = 'same', boundary = 'symm')
+      Gyb = sc.convolve2d(b, Dy, mode = 'same', boundary = 'symm')
+#      Gxxb= sc.convolve2d(Gxb, Dx, mode = 'same', boundary= 'symm')
+#      Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
+#      G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb)) #+ oldG * 0.7
+      G = np.sqrt(np.square(Gxr) + np.square(Gyr)) + np.sqrt(np.square(Gxg) + np.square(Gyg)) + np.sqrt(np.square(Gxb) + np.square(Gyb)) #+ oldG * 0.7
+      G = G / 3.0
+      thick = 60
+      for idx1 in range(G.shape[0]):
+        for idx2 in range(G.shape[1]):
+          if idx1 > yu and idx1 < yd and idx2 > xl and idx2 < xr:
+            G[idx1, idx2] = 0
+#      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type0.jpg', G)
+      G[G < thres] = 0
+#      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type2.jpg', G)
+      G[G >= thres]= 1
+      thres /= 1.2
+      dummyImg = np.zeros((G.shape[0], G.shape[1], 3)).astype(np.uint8)
+      for i1 in range(G.shape[0]):
+        for i2 in range(G.shape[1]):
+          if G[i1, i2] == 1.0:
+            dummyImg[i1, i2, :] = getAverage(outImg, i1, i2)
+#            outImg[i1, i2, :] = getAverage(outImg, i1, i2)
+      dummyMask = getMask(dummyImg)
+      outImg = np.multiply(outImg.astype(np.uint8), dummyMask) + dummyImg.astype(np.uint8)
+    #-------------------------------------------------------------------------#
+    outFrames.append(outImg)
 #------------------------------------------------------------------------------------------#
   outFrames.append(frames[L-1])
   
