@@ -100,13 +100,33 @@ def getAverage(outImg, j, k):
   else:
     jDiff = np.sum(np.abs(outImg[j+1, k, :] - outImg[j, k, :])) + np.sum(np.abs(outImg[j-1, k, :] - outImg[j, k, :]))
     kDiff = np.sum(np.abs(outImg[j, k+1, :] - outImg[j, k, :])) + np.sum(np.abs(outImg[j, k-1, :] - outImg[j, k, :]))
-    count = 2
+    flag = 60
     if jDiff > kDiff:
-      rgb += outImg[j-1, k, :]
-      rgb += outImg[j+1, k, :]
+      if np.sum(outImg[j-1, k, :] - outImg[j+1, k, :]) > flag:
+        count = 1
+        rgb = outImg[j-1, k, :]
+      elif np.sum(outImg[j+1, k, :] - outImg[j-1, k, :]) > flag:
+        count = 1
+        rgb = outImg[j+1, k, :]
+      else:
+        count = 2
+        rgb += outImg[j-1, k, :]
+        rgb += outImg[j+1, k, :]
     else:
-      rgb += outImg[j, k-1, :]
-      rgb += outImg[j, k+1, :]
+      if np.sum(outImg[j, k-1, :] - outImg[j, k+1, :]) > flag:
+        count = 1
+        rgb = outImg[j, k-1, :]
+      elif np.sum(outImg[j, k+1, :] - outImg[j, k-1, :]) > flag:
+        count = 1
+        rgb = outImg[j, k+1, :]
+      else:
+        count = 2
+        rgb += outImg[j, k-1, :]
+        rgb += outImg[j, k+1, :]
+#      rgb += outImg[j, k-1, :]
+#      rgb += outImg[j, k+1, :]
+#      if np.sum(np.abs(outImg[j, k-1, :] - outImg[j, k+1, :])) > 90:
+#        count = count - 1
   if count > 2:
     print("count larger than 2!!")
     sys.exit()
@@ -225,7 +245,7 @@ def stablizedVideoRigid(allFrames, p):
 #    print(f"sorted index is {sortedIndices}")
     for modelIdx in range(len(sortedModels)):
       patch = cv2.warpAffine(allFrames[sortedIndices[modelIdx]], sortedModels[modelIdx], (cols, rows))
-      patch = np.multiply(patch, mask)
+      patch = np.multiply(patch, mask).astype(np.uint8)
       outImg = outImg + patch
       mask = getMask(outImg)
 #      cv2.imwrite(f'cropped_frame{i}_iteration{modelIdx}.jpg',outImg)
@@ -243,7 +263,7 @@ def stablizedVideoRigid(allFrames, p):
     '''
     thres = 80.0
     #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
-    for iteration in range(6):
+    for iteration in range(3):
       Dx = np.array([[-1,1]])
       Dy = np.array([[-1],[1]])
       r = outImg[:,:,0]
@@ -263,9 +283,10 @@ def stablizedVideoRigid(allFrames, p):
       Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
       G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb))
       G = G / 3.0
+      #cv2.imwrite(f'cropped_frame{i}_g{iteration}.jpg', G)
       G[G < thres] = 0
       G[G >= thres]= 1
-      thres /= 2.0
+#      thres /= 1.1
       dummyImg = np.zeros((G.shape[0], G.shape[1], 3)).astype(np.uint8)
       for i1 in range(G.shape[0]):
         for i2 in range(G.shape[1]):
