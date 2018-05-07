@@ -135,7 +135,19 @@ def getAverage(outImg, j, k):
   rgb.astype(np.uint8)
   return rgb
 
-def getMask(img):
+def getMask(img): 
+  '''
+  r = img[:,:,0]
+  g = img[:,:,1]
+  b = img[:,:,2]
+  val = r + g + b
+  thres = 30
+  m = np.zeros((img.shape[0], img.shape[1]))
+  m[val < thres] = 1
+  m = np.reshape(m, (m.shape[0], m.shape[1], 1))
+  m_3 = np.concatenate((m, m), axis = 2)
+  m_3 = np.concatenate((m_3, m), axis = 2)
+  '''
   r = img[:,:,0]
   g = img[:,:,1]
   b = img[:,:,2]
@@ -246,7 +258,10 @@ def stablizedVideoRigid(allFrames, p):
     for modelIdx in range(len(sortedModels)):
       patch = cv2.warpAffine(allFrames[sortedIndices[modelIdx]], sortedModels[modelIdx], (cols, rows))
       patch = np.multiply(patch, mask).astype(np.uint8)
+      mask2 = np.array(mask == 0)
+#      outImg = np.multiply(mask2, outImg).astype(np.uint8) + patch
       outImg = outImg + patch
+#      outImg = outImg + patch
       mask = getMask(outImg)
 #      cv2.imwrite(f'cropped_frame{i}_iteration{modelIdx}.jpg',outImg)
 #      mask = np.invert(np.array(outImg != 0))      
@@ -262,10 +277,11 @@ def stablizedVideoRigid(allFrames, p):
           print(f"\t{outImg[j,k,:]}")
     '''
     thres = 80.0
+    #oldG = np.zeros(outImg.shape[0], outImg.shape[1])    
     #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
     for iteration in range(3):
-      Dx = np.array([[-1,1]])
-      Dy = np.array([[-1],[1]])
+      Dx = np.array([[-1,0,1]])
+      Dy = np.array([[-1],[0],[1]])
       r = outImg[:,:,0]
       g = outImg[:,:,0]
       b = outImg[:,:,0]
@@ -281,12 +297,18 @@ def stablizedVideoRigid(allFrames, p):
       Gyb = sc.convolve2d(b, Dy, mode = 'same', boundary = 'symm')
       Gxxb= sc.convolve2d(Gxb, Dx, mode = 'same', boundary= 'symm')
       Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
-      G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb))
+      G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb)) #+ oldG * 0.7
       G = G / 3.0
-      #cv2.imwrite(f'cropped_frame{i}_g{iteration}.jpg', G)
+      thick = 60
+      for idx1 in range(G.shape[0]):
+        for idx2 in range(G.shape[1]):
+          if idx1 > thick and idx1 < (G.shape[0] - thick) and idx2 > thick and idx2 < (G.shape[1] - thick):
+            G[idx1, idx2] = 0
+      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type0.jpg', G)
       G[G < thres] = 0
+      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type1.jpg', G)
       G[G >= thres]= 1
-#      thres /= 1.1
+      thres /= 1.2
       dummyImg = np.zeros((G.shape[0], G.shape[1], 3)).astype(np.uint8)
       for i1 in range(G.shape[0]):
         for i2 in range(G.shape[1]):
@@ -295,15 +317,7 @@ def stablizedVideoRigid(allFrames, p):
 #            outImg[i1, i2, :] = getAverage(outImg, i1, i2)
       dummyMask = getMask(dummyImg)
       outImg = np.multiply(outImg.astype(np.uint8), dummyMask) + dummyImg.astype(np.uint8)
-#      thres = thres / 1.5
-
-#    G = G.astype(np.uint8)
-#    G = G[G > threshold].astype(np.uint8) * 100
-#    print(f"{G.shape}")
-    G.astype(np.uint8)
-#    cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
-#    cv2.imwrite(f'gradientOfGradient_frame{i}.jpg', G)
-    outFrames.append(outImg)
+#------------------------------------------------------------------------------------------#
   outFrames.append(frames[L-1])
   
   # cropping
