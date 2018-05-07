@@ -64,10 +64,12 @@ def getSubsetFrames(frames, p):
   return newFrames
 
 def getAverage(outImg, j, k):
+  '''
   coorListX = [-1, 1, -1, 1]
   coorListY = [1, -1, -1, 1]
   rgb = np.array([0.0,0.0,0.0])
   count = 0
+  
   for idx in range(len(coorListX)):
     coorX = j + coorListX[idx]
     coorY = k + coorListY[idx]
@@ -77,7 +79,40 @@ def getAverage(outImg, j, k):
   rgb = np.floor(rgb / count)
   rgb.reshape((1,1,3))
   rgb.astype(np.uint8)
+  '''
 #  print(f"\t {rgb.shape} {rgb}")
+  rgb = np.array([0.0,0.0,0.0])
+  count = 0
+  if j - 1 < 0 or j + 1 > (outImg.shape[0] - 1):
+    if k - 1 >= 0:
+      count += 1
+      rgb += outImg[j, k-1, :]
+    if k + 1 <= (outImg.shape[1] - 1):
+      count += 1
+      rgb += outImg[j, k+1, :]
+  elif k - 1 < 0 or k + 1 > (outImg.shape[1] - 1):
+    if j - 1 >= 0:
+      count += 1
+      rgb += outImg[j-1, k, :]
+    if j + 1 <= (outImg.shape[0] - 1):
+      count += 1
+      rgb += outImg[j+1, k, :]
+  else:
+    jDiff = np.sum(np.abs(outImg[j+1, k, :] - outImg[j, k, :])) + np.sum(np.abs(outImg[j-1, k, :] - outImg[j, k, :]))
+    kDiff = np.sum(np.abs(outImg[j, k+1, :] - outImg[j, k, :])) + np.sum(np.abs(outImg[j, k-1, :] - outImg[j, k, :]))
+    count = 2
+    if jDiff > kDiff:
+      rgb += outImg[j-1, k, :]
+      rgb += outImg[j+1, k, :]
+    else:
+      rgb += outImg[j, k-1, :]
+      rgb += outImg[j, k+1, :]
+  if count > 2:
+    print("count larger than 2!!")
+    sys.exit()
+  rgb = np.floor(rgb / count)
+  rgb.reshape((1,1,3))
+  rgb.astype(np.uint8)
   return rgb
 
 def getMask(img):
@@ -93,7 +128,7 @@ def getMask(img):
   m = np.reshape(m, (m.shape[0], m.shape[1], 1))
   m_3 = np.concatenate((m, m), axis = 2)
   m_3 = np.concatenate((m_3, m), axis = 2)
-  return m
+  return m_3
 
 def stablizedVideoRigid(allFrames, p):
   #-----------------------------------------------------#
@@ -164,7 +199,7 @@ def stablizedVideoRigid(allFrames, p):
     losses  = []
     models  = []
     indices = []
-    searchRange = 5
+    searchRange = 10
     for j in range(max(0, thisIdx - searchRange), min(len(allFrames) - 1, thisIdx + searchRange)):
       if j == thisIdx:
         continue
@@ -175,7 +210,7 @@ def stablizedVideoRigid(allFrames, p):
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
       ds = 1.0 * ds_1 * transforms[i][3] * sTrajSmooth[i] / sTraj[i]
       A = computeEuclieanMatrix(dx, dy, da, ds)
-      losses.append((dx**2 + dy**2 + 0.1 * da*2 + ds*2))
+      losses.append((dx**2 + dy**2 + 0.1 * da**2 + ds**2))
       models.append(A)
       indices.append(j)
 #    print(f"\tloss is {losses}")
@@ -206,34 +241,40 @@ def stablizedVideoRigid(allFrames, p):
           outImg[j,k,2] = 0
           print(f"\t{outImg[j,k,:]}")
     '''
-
-    #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
-    Dx = np.array([[-1,1]])
-    Dy = np.array([[-1],[1]])
-    r = outImg[:,:,0]
-    g = outImg[:,:,0]
-    b = outImg[:,:,0]
-    Gxr = sc.convolve2d(r, Dx, mode = 'same', boundary = 'symm')
-    Gyr = sc.convolve2d(r, Dy, mode = 'same', boundary = 'symm')
-    Gxxr= sc.convolve2d(Gxr, Dx, mode = 'same', boundary= 'symm')
-    Gyyr= sc.convolve2d(Gyr, Dy, mode = 'same', boundary= 'symm')
-    Gxg = sc.convolve2d(g, Dx, mode = 'same', boundary = 'symm')
-    Gyg = sc.convolve2d(g, Dy, mode = 'same', boundary = 'symm')
-    Gxxg= sc.convolve2d(Gxg, Dx, mode = 'same', boundary= 'symm')
-    Gyyg= sc.convolve2d(Gyg, Dy, mode = 'same', boundary= 'symm')
-    Gxb = sc.convolve2d(b, Dx, mode = 'same', boundary = 'symm')
-    Gyb = sc.convolve2d(b, Dy, mode = 'same', boundary = 'symm')
-    Gxxb= sc.convolve2d(Gxb, Dx, mode = 'same', boundary= 'symm')
-    Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
-    G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb))
-    G = G / 3.0
     thres = 80.0
-    G[G < thres] = 0
-    G[G >= thres]= 1
-    for i1 in range(G.shape[0]):
-      for i2 in range(G.shape[1]):
-        if G[i1, i2] == 1.0:
-          outImg[i1, i2, :] = getAverage(outImg, i1, i2)
+    #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
+    for iteration in range(6):
+      Dx = np.array([[-1,1]])
+      Dy = np.array([[-1],[1]])
+      r = outImg[:,:,0]
+      g = outImg[:,:,0]
+      b = outImg[:,:,0]
+      Gxr = sc.convolve2d(r, Dx, mode = 'same', boundary = 'symm')
+      Gyr = sc.convolve2d(r, Dy, mode = 'same', boundary = 'symm')
+      Gxxr= sc.convolve2d(Gxr, Dx, mode = 'same', boundary= 'symm')
+      Gyyr= sc.convolve2d(Gyr, Dy, mode = 'same', boundary= 'symm')
+      Gxg = sc.convolve2d(g, Dx, mode = 'same', boundary = 'symm')
+      Gyg = sc.convolve2d(g, Dy, mode = 'same', boundary = 'symm')
+      Gxxg= sc.convolve2d(Gxg, Dx, mode = 'same', boundary= 'symm')
+      Gyyg= sc.convolve2d(Gyg, Dy, mode = 'same', boundary= 'symm')
+      Gxb = sc.convolve2d(b, Dx, mode = 'same', boundary = 'symm')
+      Gyb = sc.convolve2d(b, Dy, mode = 'same', boundary = 'symm')
+      Gxxb= sc.convolve2d(Gxb, Dx, mode = 'same', boundary= 'symm')
+      Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
+      G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb))
+      G = G / 3.0
+      G[G < thres] = 0
+      G[G >= thres]= 1
+      thres /= 2.0
+      dummyImg = np.zeros((G.shape[0], G.shape[1], 3)).astype(np.uint8)
+      for i1 in range(G.shape[0]):
+        for i2 in range(G.shape[1]):
+          if G[i1, i2] == 1.0:
+            dummyImg[i1, i2, :] = getAverage(outImg, i1, i2)
+#            outImg[i1, i2, :] = getAverage(outImg, i1, i2)
+      dummyMask = getMask(dummyImg)
+      outImg = np.multiply(outImg.astype(np.uint8), dummyMask) + dummyImg.astype(np.uint8)
+#      thres = thres / 1.5
 
 #    G = G.astype(np.uint8)
 #    G = G[G > threshold].astype(np.uint8) * 100
