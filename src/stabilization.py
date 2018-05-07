@@ -4,6 +4,7 @@ import sys
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from scipy.ndimage.filters import gaussian_filter1d
+import scipy.signal as sc
 
 # Finds A: img2 = A * img1
 def getRigidTransform(img1, img2):
@@ -63,47 +64,9 @@ def getSubsetFrames(frames, p):
   return newFrames
 
 def getAverage(outImg, j, k):
-  if (j == outImg.shape[0] - 1 or j == 0):
-    rgb = np.array([0,0,0])
-    count = 0
-    if k - 1 >= 0:
-      rgb += outImg[j, k-1, :]
-      count += 1
-    if k + 1 < outImg.shape[1]:
-      rgb += outImg[j, k+1, :]
-      count += 1
-    rgb = np.floor(rgb / count)
-    rgb.reshape((1,1,3))
-    rgb.astype(np.uint8)
-    return rgb
-  elif (k == outImg.shape[1] - 1 or k == 0):
-    rgb = np.array([0,0,0])
-    count = 0
-    if j - 1 >= 0:
-      rgb += outImg[j-1, k, :]
-      count += 1
-    if k + 1 < outImg.shape[1]:
-      rgb += outImg[j+1, k, :]
-      count += 1
-    rgb = np.floor(rgb / count)
-    rgb.reshape((1,1,3))
-    rgb.astype(np.uint8)
-    return rgb
-  else:
-    jGrad = np.sum(np.abs(outImg[j+1, k, :] - outImg[j-1, k, :]))
-    kGrad = np.sum(np.abs(outImg[j, k+1, :] - outImg[j, k-1, :]))
-    if jGrad > kGrad:
-      rgb = (outImg[j+1, k, :] + outImg[j-1, k, :])/2 
-    else:
-      rgb = (outImg[j, k+1, :] + outImg[j, k-1, :])/2 
-    rgb = np.floor(rgb)
-    rgb.reshape((1,1,3))
-    rgb.astype(np.uint8)
-    return rgb
-  '''
   coorListX = [-1, 1, -1, 1]
   coorListY = [1, -1, -1, 1]
-  rgb = np.array([0,0,0])
+  rgb = np.array([0.0,0.0,0.0])
   count = 0
   for idx in range(len(coorListX)):
     coorX = j + coorListX[idx]
@@ -115,8 +78,7 @@ def getAverage(outImg, j, k):
   rgb.reshape((1,1,3))
   rgb.astype(np.uint8)
 #  print(f"\t {rgb.shape} {rgb}")
-  '''
-  #return rgb
+  return rgb
 
 def getMask(img):
   r = img[:,:,0]
@@ -175,10 +137,10 @@ def stablizedVideoRigid(allFrames, p):
   aTrajSmooth = gaussian_filter1d(aTraj, sigma=SIGMA)
   sTrajSmooth = gaussian_filter1d(sTraj, sigma=SIGMA)
 
-  x = np.arange(len(xTraj))
-  plt.plot(x,sTraj,'r--', x,yTraj,'b--')
+#  x = np.arange(len(xTraj))
+#  plt.plot(x,sTraj,'r--')
 #  plt.plot(x,xTrajSmooth,'r:', x,yTrajSmooth,'b:')
-  plt.show()
+#  plt.show()
 
   corners = np.array([[0,0,1], [0,rows,1], [cols,0,1], [cols,rows,1]])
   xLeft = 0
@@ -213,7 +175,7 @@ def stablizedVideoRigid(allFrames, p):
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
       ds = 1.0 * ds_1 * transforms[i][3] * sTrajSmooth[i] / sTraj[i]
       A = computeEuclieanMatrix(dx, dy, da, ds)
-      losses.append((dx**2 + dy**2 + 0.1 * da*2))
+      losses.append((dx**2 + dy**2 + 0.1 * da*2 + ds*2))
       models.append(A)
       indices.append(j)
 #    print(f"\tloss is {losses}")
@@ -222,8 +184,8 @@ def stablizedVideoRigid(allFrames, p):
 #    print(f"loss is {losses}")
     sortedModels = models
     sortedIndices= indices
-    #sortedModels = [x for _, x in sorted(zip(losses, models), reverse = True)]
-    #sortedIndices= [x for _, x in sorted(zip(losses, indices), reverse = True)]
+    sortedModels = [x for _, x in sorted(zip(losses, models))]
+    sortedIndices= [x for _, x in sorted(zip(losses, indices))]
 #    print(f"sorted model is {sortedModels}")
 #    print(f"sorted index is {sortedIndices}")
     for modelIdx in range(len(sortedModels)):
@@ -233,14 +195,52 @@ def stablizedVideoRigid(allFrames, p):
       mask = getMask(outImg)
 #      cv2.imwrite(f'cropped_frame{i}_iteration{modelIdx}.jpg',outImg)
 #      mask = np.invert(np.array(outImg != 0))      
+    '''
     mask = getMask(outImg)
-    for j in range(outImg.shape[0]):
-      for k in range(outImg.shape[1]):
-        if outImg[j,k,0] == 0 and outImg[j,k,1] == 0 and outImg[j,k,2] == 0 :
-#          print(f"position {j}, {k} has no value {outImg[j,k,:]}")
-          outImg[j,k,:] = getAverage(outImg, j, k)
-#          print(f"\t{outImg[j,k,:]}")
+    for j in range(mask.shape[0]):
+      for k in range(mask.shape[1]):
+        if mask[j,k,0] == 1:
+          print(f"position {j}, {k} has no value {outImg[j,k,:]}")
+          outImg[j,k,0] = 255#= np.array([255,0,0]).reshape((1,1,3))#getAverage(outImg, j, k)
+          outImg[j,k,1] = 0
+          outImg[j,k,2] = 0
+          print(f"\t{outImg[j,k,:]}")
+    '''
+
     #cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
+    Dx = np.array([[-1,1]])
+    Dy = np.array([[-1],[1]])
+    r = outImg[:,:,0]
+    g = outImg[:,:,0]
+    b = outImg[:,:,0]
+    Gxr = sc.convolve2d(r, Dx, mode = 'same', boundary = 'symm')
+    Gyr = sc.convolve2d(r, Dy, mode = 'same', boundary = 'symm')
+    Gxxr= sc.convolve2d(Gxr, Dx, mode = 'same', boundary= 'symm')
+    Gyyr= sc.convolve2d(Gyr, Dy, mode = 'same', boundary= 'symm')
+    Gxg = sc.convolve2d(g, Dx, mode = 'same', boundary = 'symm')
+    Gyg = sc.convolve2d(g, Dy, mode = 'same', boundary = 'symm')
+    Gxxg= sc.convolve2d(Gxg, Dx, mode = 'same', boundary= 'symm')
+    Gyyg= sc.convolve2d(Gyg, Dy, mode = 'same', boundary= 'symm')
+    Gxb = sc.convolve2d(b, Dx, mode = 'same', boundary = 'symm')
+    Gyb = sc.convolve2d(b, Dy, mode = 'same', boundary = 'symm')
+    Gxxb= sc.convolve2d(Gxb, Dx, mode = 'same', boundary= 'symm')
+    Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
+    G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb))
+    G = G / 3.0
+    thres = 80.0
+    G[G < thres] = 0
+    G[G >= thres]= 1
+    for i1 in range(G.shape[0]):
+      for i2 in range(G.shape[1]):
+        if G[i1, i2] == 1.0:
+          outImg[i1, i2, :] = getAverage(outImg, i1, i2)
+
+#    G = G.astype(np.uint8)
+#    G = G[G > threshold].astype(np.uint8) * 100
+#    print(f"{G.shape}")
+    G.astype(np.uint8)
+#    cv2.imwrite(f'cropped_frame{i}.jpg',outImg)
+#    cv2.imwrite(f'gradientOfGradient_frame{i}.jpg', G)
     outFrames.append(outImg)
   outFrames.append(frames[L-1])
   
