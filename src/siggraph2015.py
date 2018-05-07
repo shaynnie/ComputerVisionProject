@@ -136,7 +136,7 @@ def generateVideo(frames, speedup, outName):
   #-------------------------------------------------------#
   # One function to wrap up all stuff                     #
   #-------------------------------------------------------#
-  frames = frames[0:30]
+  #frames = frames[0:30]
   v = speedup
   g = v + 1
   w = v
@@ -182,12 +182,13 @@ def generateVideo(frames, speedup, outName):
   #print(f"p is {p}")
   actualSpeedUp = 1.0 * L / len(p)
   print(f"Smoothing completed, desired speedup is {v}, actuall speedup is {actualSpeedUp}")
-  actualSpeedUp = math.ceil(actualSpeedUp)
+  #actualSpeedUp = math.ceil(actualSpeedUp)
+  actualSpeedUp = actualSpeedUp
   out = cv2.VideoWriter('outputNoWrapping.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 1080))
   print("Writing intermediate results to outputNoWrapping.avi")
   bfIdx = 0
   for idx in p:
-    thisFrame = np.concatenate((frames[idx], frames[bfIdx]), axis=0)
+    thisFrame = np.concatenate((frames[idx], frames[math.floor(bfIdx)]), axis=0)
     out.write(thisFrame)
     bfIdx += actualSpeedUp
     if bfIdx >= L:

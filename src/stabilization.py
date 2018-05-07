@@ -40,7 +40,7 @@ def getRigidTransform(img1, img2):
   A = cv2.estimateRigidTransform(img1_pts, img2_pts, False)
   #A = cv2.getAffineTransform(img1_pts, img2_pts, False)
   if A is None:
-    return 0,0,0
+    return 0,0,0,1
   dx = A[0,2]
   dy = A[1,2]
   da = np.arctan2(A[1,0], A[0,0])
@@ -309,9 +309,12 @@ def stablizedVideoRigid(allFrames, p):
       da = da_1 + transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
       ds = 1.0 * ds_1 * transforms[i][3] * sTrajSmooth[i] / sTraj[i]
       A = computeEuclieanMatrix(dx, dy, da, ds)
-      losses.append((dx**2 + dy**2 + 0.1 * da**2 + ds**2))
-      models.append(A)
-      indices.append(j)
+#      losses.append((dx**2 + dy**2 + 0.1 * da**2 + ds**2))
+      thisLoss = (dx**2 + dy**2 + 0.1 * da**2 + ds**2)
+      if thisLoss not in losses:
+        losses.append(thisLoss)
+        models.append(A)
+        indices.append(j)
 #    print(f"\tloss is {losses}")
 #    print(f"\tmodel is {models}")
 #    print(f"\tindex is {indices}")
@@ -388,7 +391,7 @@ def stablizedVideoRigid(allFrames, p):
     '''
     #-------------------------------------------------------------------------#
     thres = 30.0
-    for iteration in range(5):
+    for iteration in range(4):
       Dx = np.array([[-1,2,-1]])
       Dy = np.array([[-1],[2],[-1]])
       r = outImg[:,:,0]
@@ -437,8 +440,11 @@ def stablizedVideoRigid(allFrames, p):
 #  for frame in outFrames:
 #    cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
 
-  out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], cropped[0].shape[0]))
-  for f in cropped:
-    out.write(f)
+  out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], 2*cropped[0].shape[0]))
+  for idx in range(len(frames)):
+    thisFrame = np.concatenate((cropped[idx], frames[idx]), axis=0)
+    out.write(thisFrame)
+  #for f in cropped:
+  #  out.write(f)
   out.release()
   #cv2.imwrite('cropped_frame.jpg',cropped[0])
