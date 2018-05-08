@@ -67,7 +67,7 @@ def Cr(img1, img2):
   img1_pts = np.float32([ kp1[m.queryIdx].pt for m in matches ]).reshape(-1,2)
   img2_pts = np.float32([ kp2[m.trainIdx].pt for m in matches ]).reshape(-1,2)
   # img2_pts_i = H * img1_pts_i
-  H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=5.0)
+  H, mask = cv2.findHomography(img1_pts, img2_pts, cv2.RANSAC,ransacReprojThreshold=2.0)
 
   img1_pts_inliers = [[x,y] for i,[x,y] in enumerate(img1_pts) if mask[i]==1]
   img2_pts_inliers = [[x,y] for i,[x,y] in enumerate(img2_pts) if mask[i]==1]
