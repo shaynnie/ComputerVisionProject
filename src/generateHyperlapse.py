@@ -18,3 +18,4 @@ if __name__ == '__main__':
   inputName, speedup, outName = parseArgv(sys.argv)
   frames = alg.readVideo(inputName)
   alg.generateVideo(frames, speedup, outName)
+  # alg.generateVideoNoOptimal(frames, outName)

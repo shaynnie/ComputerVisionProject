@@ -195,3 +195,6 @@ def generateVideo(frames, speedup, outName):
       bfIdx = L -1
   out.release()
   stb.stablizedVideoRigid(frames, p)
+
+def generateVideoNoOptimal(frames, outName):
+  stb.stablizedVideoRigid(frames, None)
