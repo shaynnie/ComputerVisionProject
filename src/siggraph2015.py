@@ -22,7 +22,8 @@ def readVideo(inputName):
   while (capture.isOpened()):
     valid, frame = capture.read()
     if valid:
-      ret.append(frame[270:810, 480:1440, :])
+#      ret.append(frame[270:810, 480:1440, :])
+      ret.append(frame)
     else:
       break
   capture.release()
@@ -184,7 +185,7 @@ def generateVideo(frames, speedup, outName):
   print(f"Smoothing completed, desired speedup is {v}, actuall speedup is {actualSpeedUp}")
   #actualSpeedUp = math.ceil(actualSpeedUp)
   actualSpeedUp = actualSpeedUp
-  out = cv2.VideoWriter('outputNoWrapping.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (960, 1080))
+  out = cv2.VideoWriter('outputNoWrapping.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (frames[0].shape[1], 2 * frames[0].shape[0]))
   print("Writing intermediate results to outputNoWrapping.avi")
   bfIdx = 0
   for idx in p:
