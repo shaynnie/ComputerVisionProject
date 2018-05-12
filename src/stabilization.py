@@ -245,6 +245,10 @@ def estimatePath(frames):
   return xTraj, yTraj, aTraj, sTraj, transforms
 
 def cropping(outImg, xCoor, yCoor, thres = 30.0, iter=4):
+  #------------------------------------------------------#
+  # Calculating the gradient of gradient to find cracks  #
+  # Then fix the cracks by surrounding average           #
+  #------------------------------------------------------#
 
   xl = xCoor[1]
   xr = xCoor[2]
@@ -266,13 +270,13 @@ def cropping(outImg, xCoor, yCoor, thres = 30.0, iter=4):
     G = np.sqrt(np.square(Gxr) + np.square(Gyr)) + np.sqrt(np.square(Gxg) + np.square(Gyg)) + np.sqrt(np.square(Gxb) + np.square(Gyb)) #+ oldG * 0.7
     G = G / 3.0
     thick = 60
+    # G[xl:xr, yu:yd] = 0
     for idx1 in range(G.shape[0]):
       for idx2 in range(G.shape[1]):
         if idx1 > yu and idx1 < yd and idx2 > xl and idx2 < xr:
           G[idx1, idx2] = 0
-#      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type0.jpg', G)
+
     G[G < thres] = 0
-#      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type2.jpg', G)
     G[G >= thres]= 1
     thres /= 1.2
     dummyImg = np.zeros((G.shape[0], G.shape[1], 3)).astype(np.uint8)
@@ -291,6 +295,7 @@ def stablizedVideoRigid(allFrames, p, SIGMA = 5):
   # p: list containing indices of optimal frame selected #
   #    from previous path planning                       #
   #------------------------------------------------------#
+
   frames = getSubsetFrames(allFrames, p)
   cols = frames[0].shape[1]
   rows = frames[0].shape[0]
@@ -313,7 +318,6 @@ def stablizedVideoRigid(allFrames, p, SIGMA = 5):
   # transforms[i]: rigid transform parameters from frame i + 1 to frame i
   for i in range(L-1):
     print(f"transforming frame {i}")
-    #    [frame i + 1 + k to frame i + 1] + [frame i + 1 to frame i] + [shift of frame i]
     dx = transforms[i][0] + (xTrajSmooth[i] - xTraj[i])
     dy = transforms[i][1] + (yTrajSmooth[i] - yTraj[i])
     da = transforms[i][2] + (aTrajSmooth[i] - aTraj[i])
@@ -324,10 +328,7 @@ def stablizedVideoRigid(allFrames, p, SIGMA = 5):
     yCoor = [outCorners[0,1], outCorners[1,1], outCorners[2,1], outCorners[3,1]]
     xCoor.sort()
     yCoor.sort()
-    # xl = xCoor[1]
-    # xr = xCoor[2]
-    # yu = yCoor[1]
-    # yd = yCoor[2]
+
     outImg = cv2.warpAffine(frames[i], A, (cols,rows))
     
     mask = getMask(outImg)
@@ -364,69 +365,19 @@ def stablizedVideoRigid(allFrames, p, SIGMA = 5):
       mask2 = np.array(mask == 0)
       outImg = outImg + patch
       mask = getMask(outImg)
-      
+
     outImg = cropping(outImg, xCoor, yCoor, thres = 30.0, iter = 4)
 #      cv2.imwrite(f'cropped_frame{i}_iteration{modelIdx}.jpg',outImg)
-#      mask = np.invert(np.array(outImg != 0))      
-    
-    #-------------------------------------------------------------------------#
-#     thres = 30.0
-#     for iteration in range(4):
-#       Dx = np.array([[-1,2,-1]])
-#       Dy = np.array([[-1],[2],[-1]])
-#       r = outImg[:,:,0]
-#       g = outImg[:,:,0]
-#       b = outImg[:,:,0]
-#       Gxr = sc.convolve2d(r, Dx, mode = 'same', boundary = 'symm')
-#       Gyr = sc.convolve2d(r, Dy, mode = 'same', boundary = 'symm')
-# #      Gxxr= sc.convolve2d(Gxr, Dx, mode = 'same', boundary= 'symm')
-# #      Gyyr= sc.convolve2d(Gyr, Dy, mode = 'same', boundary= 'symm')
-#       Gxg = sc.convolve2d(g, Dx, mode = 'same', boundary = 'symm')
-#       Gyg = sc.convolve2d(g, Dy, mode = 'same', boundary = 'symm')
-# #      Gxxg= sc.convolve2d(Gxg, Dx, mode = 'same', boundary= 'symm')
-# #      Gyyg= sc.convolve2d(Gyg, Dy, mode = 'same', boundary= 'symm')
-#       Gxb = sc.convolve2d(b, Dx, mode = 'same', boundary = 'symm')
-#       Gyb = sc.convolve2d(b, Dy, mode = 'same', boundary = 'symm')
-# #      Gxxb= sc.convolve2d(Gxb, Dx, mode = 'same', boundary= 'symm')
-# #      Gyyb= sc.convolve2d(Gyb, Dy, mode = 'same', boundary= 'symm')
-# #      G = np.sqrt(np.square(Gxxr) + np.square(Gyyr)) + np.sqrt(np.square(Gxxg) + np.square(Gyyg)) + np.sqrt(np.square(Gxxb) + np.square(Gyyb)) #+ oldG * 0.7
-#       G = np.sqrt(np.square(Gxr) + np.square(Gyr)) + np.sqrt(np.square(Gxg) + np.square(Gyg)) + np.sqrt(np.square(Gxb) + np.square(Gyb)) #+ oldG * 0.7
-#       G = G / 3.0
-#       thick = 60
-#       for idx1 in range(G.shape[0]):
-#         for idx2 in range(G.shape[1]):
-#           if idx1 > yu and idx1 < yd and idx2 > xl and idx2 < xr:
-#             G[idx1, idx2] = 0
-# #      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type0.jpg', G)
-#       G[G < thres] = 0
-# #      cv2.imwrite(f'cropped_frame{i}_g{iteration}_type2.jpg', G)
-#       G[G >= thres]= 1
-#       thres /= 1.2
-#       dummyImg = np.zeros((G.shape[0], G.shape[1], 3)).astype(np.uint8)
-#       for i1 in range(G.shape[0]):
-#         for i2 in range(G.shape[1]):
-#           if G[i1, i2] == 1.0:
-#             dummyImg[i1, i2, :] = getAverage(outImg, i1, i2)
-# #            outImg[i1, i2, :] = getAverage(outImg, i1, i2)
-#       dummyMask = getMask(dummyImg)
-#       outImg = np.multiply(outImg.astype(np.uint8), dummyMask) + dummyImg.astype(np.uint8)
-    
+#      mask = np.invert(np.array(outImg != 0))          
     #-------------------------------------------------------------------------#
     outFrames.append(outImg)
-#------------------------------------------------------------------------------------------#
+
   outFrames.append(frames[L-1])
-  
-  # cropping
   cropped = outFrames
-#  for frame in outFrames:
-#    cropped.append(frame)#frame[int(yUp):int(yDown), int(xLeft):int(xRight)])
 
   out = cv2.VideoWriter('outputStabilized.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 30.0, (cropped[0].shape[1], 2*cropped[0].shape[0]))
   for idx in range(len(frames)):
     thisFrame = np.concatenate((cropped[idx], frames[idx]), axis=0)
     out.write(thisFrame)
-  #for f in cropped:
-  #  out.write(f)
   out.release()
-  #cv2.imwrite('cropped_frame.jpg',cropped[0])
 
